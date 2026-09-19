@@ -41,7 +41,7 @@ export default function AdminNav({ email }: { email: string }) {
 
   async function handleSignOut() {
     await signOutAdmin();
-    router.push("/admin/login");
+    router.push("/login");
     router.refresh();
   }
 

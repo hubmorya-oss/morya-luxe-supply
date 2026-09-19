@@ -1,6 +1,6 @@
 import React from "react";
 import Image from "next/image";
-// Removed Link
+import Link from "next/link";
 import { Phone, MessageCircle, MapPin, ShieldCheck, FileSpreadsheet } from "lucide-react";
 import { whatsappUrl, telUrl, WHATSAPP_DISPLAY } from "@/lib/config";
 
@@ -189,8 +189,11 @@ export default function Footer() {
           <div>
             &copy; {new Date().getFullYear()} <strong>Morya Luxe Supply</strong>. All rights reserved. B2B Wholesale Barber Supply Network.
           </div>
-          <div>
-            Authorized B2B Trade Platform • Powered by Vercel Edge &amp; Supabase
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 16px" }}>
+            <span>Authorized B2B Trade Platform • Powered by Vercel Edge &amp; Supabase</span>
+            <Link href="/login" style={{ color: "inherit", textDecoration: "none" }}>
+              Login
+            </Link>
           </div>
         </div>
       </div>

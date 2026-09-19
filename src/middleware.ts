@@ -41,26 +41,36 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isLoginPage = pathname === "/admin/login";
+  const isPublicLogin = pathname === "/login";
+  const isLegacyAdminLogin = pathname === "/admin/login";
   const isAdminRoute = pathname.startsWith("/admin");
-
-  if (!isAdminRoute) {
-    return supabaseResponse;
-  }
 
   const adminEmails = getAdminEmails();
   const isAllowedAdmin =
     user?.email && adminEmails.includes(user.email.trim().toLowerCase());
 
-  if (isLoginPage) {
+  if (isLegacyAdminLogin) {
+    const loginUrl = new URL("/login", request.url);
+    request.nextUrl.searchParams.forEach((value, key) => {
+      loginUrl.searchParams.set(key, value);
+    });
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (isPublicLogin) {
     if (isAllowedAdmin) {
-      return NextResponse.redirect(new URL("/admin", request.url));
+      const next = request.nextUrl.searchParams.get("next") || "/admin";
+      return NextResponse.redirect(new URL(next, request.url));
     }
     return supabaseResponse;
   }
 
+  if (!isAdminRoute) {
+    return supabaseResponse;
+  }
+
   if (!isAllowedAdmin) {
-    const loginUrl = new URL("/admin/login", request.url);
+    const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -69,5 +79,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/login"],
 };

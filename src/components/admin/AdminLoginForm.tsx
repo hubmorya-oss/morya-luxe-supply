@@ -31,16 +31,15 @@ export default function AdminLoginForm() {
   }
 
   return (
-    <div className="admin-login-page">
-      <div className="admin-login-card">
-        <h1>Morya Admin</h1>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "24px" }}>
-          Owner sign-in for catalog and order management.
-        </p>
+    <>
+      <h1 style={{ fontSize: "1.4rem", marginBottom: "8px" }}>Sign In</h1>
+      <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "24px" }}>
+        Welcome back. Sign in to continue.
+      </p>
 
-        {error && <div className="admin-error">{error}</div>}
+      {error && <div className="admin-error">{error}</div>}
 
-        <form className="admin-form" onSubmit={handleSubmit} style={{ maxWidth: "100%" }}>
+      <form className="admin-form" onSubmit={handleSubmit} style={{ maxWidth: "100%" }}>
           <div className="admin-field">
             <label htmlFor="email">Email</label>
             <input
@@ -67,7 +66,6 @@ export default function AdminLoginForm() {
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
-      </div>
-    </div>
+    </>
   );
 }

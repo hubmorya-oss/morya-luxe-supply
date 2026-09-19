@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Menu,
   X,
+  LogIn,
   ShieldCheck,
   Truck,
   Sparkles,
@@ -178,6 +179,25 @@ export default function Navbar({
           </div>
 
           <div className="nav-actions-group" style={{ display: "flex", alignItems: "center", gap: "16px", flexShrink: 0 }}>
+            <Link
+              href="/login"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                color: "var(--text-secondary)",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                textDecoration: "none",
+                minHeight: 44,
+                padding: "0 4px",
+              }}
+              className="nav-login-link"
+            >
+              <LogIn size={16} />
+              <span>Login</span>
+            </Link>
+
             <button
               onClick={() => setIsBulkInquiryOpen(true)}
               className="btn btn-secondary-outline"
@@ -320,6 +340,15 @@ export default function Navbar({
               <MessageCircle size={18} />
               <span>Chat on WhatsApp ({WHATSAPP_DISPLAY})</span>
             </a>
+            <Link
+              href="/login"
+              className="btn btn-secondary-outline"
+              style={{ width: "100%", justifyContent: "flex-start" }}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <LogIn size={18} color="var(--gold-400)" />
+              <span>Login</span>
+            </Link>
           </div>
         )}
       </nav>
