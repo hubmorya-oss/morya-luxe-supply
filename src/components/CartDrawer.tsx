@@ -14,13 +14,30 @@ import {
 } from "lucide-react";
 import { Order } from "@/types";
 import { saveOrderToLocalStorage } from "@/lib/supabase";
-import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
 import {
+  getPublicRazorpayKeyId,
+  isDemoModeEnabled,
+  openWhatsApp,
+  whatsappUrl,
+  WHATSAPP_DISPLAY,
+} from "@/lib/config";
+import {
+  FieldErrors,
   formatItemCount,
-  INDIAN_PHONE_ERROR,
-  isValidPincode,
-  normalizeIndianPhone,
+  validateOrderCustomerDetails,
 } from "@/lib/validation";
+
+type RazorpayFailureResponse = {
+  error?: {
+    description?: string;
+    reason?: string;
+  };
+};
+
+type RazorpayCheckoutInstance = {
+  open: () => void;
+  on: (event: string, handler: (response: RazorpayFailureResponse) => void) => void;
+};
 
 export default function CartDrawer() {
   const {
@@ -41,6 +58,7 @@ export default function CartDrawer() {
   const [orderSuccess, setOrderSuccess] = useState<Order | null>(null);
   const [isDemoOrder, setIsDemoOrder] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   if (!isCartOpen) return null;
 
@@ -58,34 +76,32 @@ export default function CartDrawer() {
       subtotal: c.subtotal,
     }));
 
-  const getValidatedCustomerDetails = () => {
-    if (!customerDetails.fullName.trim()) return { error: "Please enter your owner/barber name" };
-    if (!customerDetails.salonName.trim()) {
-      return { error: "Please enter your salon / barbershop name" };
-    }
-    const normalizedPhone = normalizeIndianPhone(customerDetails.phone);
-    if (!normalizedPhone) return { error: INDIAN_PHONE_ERROR };
-    if (!customerDetails.address.trim()) return { error: "Please enter delivery address" };
-    if (!customerDetails.city.trim()) return { error: "Please enter your city" };
-    if (!isValidPincode(customerDetails.pincode.trim())) {
-      return { error: "Please enter a valid 6-digit Indian pincode" };
-    }
-    return {
-      details: {
-        ...customerDetails,
-        phone: normalizedPhone,
-      },
-    };
+  const fieldErrorStyle: React.CSSProperties = {
+    fontSize: "0.72rem",
+    color: "#fca5a5",
+    marginTop: "4px",
+    display: "block",
+  };
+
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleWhatsAppCheckout = async () => {
-    const validation = getValidatedCustomerDetails();
-    if ("error" in validation) {
+    const validation = validateOrderCustomerDetails(customerDetails);
+    if (!validation.valid) {
       setErrorMessage(validation.error);
+      setFieldErrors(validation.fieldErrors);
       return;
     }
-    const validatedDetails = validation.details;
+    const validatedDetails = validation.data;
     setErrorMessage("");
+    setFieldErrors({});
     setIsProcessing(true);
 
     try {
@@ -130,8 +146,8 @@ Order ID: #${orderId}
 Salon: *${validatedDetails.salonName}*
 Owner: *${validatedDetails.fullName}*
 Phone: *${validatedDetails.phone}*
-Address: ${customerDetails.address}, ${customerDetails.city} - ${customerDetails.pincode}
-${customerDetails.gstin ? `GSTIN: ${customerDetails.gstin}\n` : ""}
+Address: ${validatedDetails.address}, ${validatedDetails.city}, ${validatedDetails.state} - ${validatedDetails.pincode}
+${validatedDetails.gstin ? `GSTIN: ${validatedDetails.gstin}\n` : ""}${validatedDetails.orderNotes ? `Notes: ${validatedDetails.orderNotes}\n` : ""}
 ----------------------------------------
 *Order Items:*
 ${itemLines}
@@ -143,7 +159,7 @@ ${itemLines}
 ----------------------------------------
 Please confirm my order dispatch timeline and payment details.`;
 
-      window.open(whatsappUrl(message), "_blank");
+      openWhatsApp(message);
       setIsDemoOrder(false);
       setOrderSuccess(newOrder);
       clearCart();
@@ -183,13 +199,15 @@ Please confirm my order dispatch timeline and payment details.`;
   };
 
   const handleRazorpayCheckout = async () => {
-    const validation = getValidatedCustomerDetails();
-    if ("error" in validation) {
+    const validation = validateOrderCustomerDetails(customerDetails);
+    if (!validation.valid) {
       setErrorMessage(validation.error);
+      setFieldErrors(validation.fieldErrors);
       return;
     }
-    const validatedDetails = validation.details;
+    const validatedDetails = validation.data;
     setErrorMessage("");
+    setFieldErrors({});
     setIsProcessing(true);
 
     try {
@@ -222,19 +240,30 @@ Please confirm my order dispatch timeline and payment details.`;
         createdAt: new Date().toISOString(),
       };
 
-      if (
-        typeof window !== "undefined" &&
-        (window as unknown as { Razorpay: unknown }).Razorpay &&
-        !orderData.isMock
-      ) {
+      const razorpayKeyId = getPublicRazorpayKeyId();
+      const orderId = (orderData.order_id || orderData.id) as string;
+      const RazorpayConstructor = (
+        window as unknown as {
+          Razorpay?: new (options: Record<string, unknown>) => RazorpayCheckoutInstance;
+        }
+      ).Razorpay;
+
+      if (!orderData.isMock) {
+        if (!razorpayKeyId) {
+          throw new Error("Payment gateway is not configured. Use WhatsApp checkout.");
+        }
+        if (!RazorpayConstructor) {
+          throw new Error("Payment gateway is still loading. Please wait a moment and try again.");
+        }
+
         const options = {
-          key: orderData.keyId,
+          key: razorpayKeyId,
           amount: orderData.amount,
           currency: orderData.currency,
           name: "Morya Luxe Supply",
           description: `Wholesale Supply - ${validatedDetails.salonName}`,
           image: "/images/icon.svg",
-          order_id: orderData.id,
+          order_id: orderId,
           handler: async function (response: Record<string, string>) {
             try {
               await completeVerifiedOrder(pendingOrder, {
@@ -251,7 +280,10 @@ Please confirm my order dispatch timeline and payment details.`;
             }
           },
           modal: {
-            ondismiss: () => setIsProcessing(false),
+            ondismiss: () => {
+              setErrorMessage("Payment cancelled. You can retry or use WhatsApp checkout.");
+              setIsProcessing(false);
+            },
           },
           prefill: {
             name: validatedDetails.fullName,
@@ -261,21 +293,26 @@ Please confirm my order dispatch timeline and payment details.`;
           theme: { color: "#D4AF37" },
         };
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rzp = new (window as any).Razorpay(options);
-        rzp.on("payment.failed", () => {
-          setErrorMessage("Payment failed. Please try again or use WhatsApp checkout.");
+        const rzp = new RazorpayConstructor(options);
+        rzp.on("payment.failed", (response: RazorpayFailureResponse) => {
+          const reason =
+            response.error?.description ||
+            response.error?.reason ||
+            "Payment failed. Please try again or use WhatsApp checkout.";
+          setErrorMessage(reason);
           setIsProcessing(false);
         });
         rzp.open();
-      } else {
+      } else if (isDemoModeEnabled()) {
         await completeVerifiedOrder(pendingOrder, {
-          razorpay_order_id: orderData.id,
+          razorpay_order_id: orderId,
           razorpay_payment_id: `pay_demo_${Date.now()}`,
           orderDetails: pendingOrder,
           isDemo: true,
         });
         setIsProcessing(false);
+      } else {
+        throw new Error("Online payment is not configured. Use WhatsApp checkout.");
       }
     } catch (err: unknown) {
       console.error("Razorpay Error:", err);
@@ -684,9 +721,10 @@ Please confirm my order dispatch timeline and payment details.`;
                           type="text"
                           required
                           value={customerDetails.fullName}
-                          onChange={(e) =>
-                            setCustomerDetails({ ...customerDetails, fullName: e.target.value })
-                          }
+                          onChange={(e) => {
+                            clearFieldError("fullName");
+                            setCustomerDetails({ ...customerDetails, fullName: e.target.value });
+                          }}
                           placeholder="e.g. Ramesh Sharma"
                           style={{
                             width: "100%",
@@ -700,6 +738,9 @@ Please confirm my order dispatch timeline and payment details.`;
                             minHeight: 44,
                           }}
                         />
+                        {fieldErrors.fullName && (
+                          <span style={fieldErrorStyle}>{fieldErrors.fullName}</span>
+                        )}
                       </div>
 
                       <div>
@@ -711,9 +752,10 @@ Please confirm my order dispatch timeline and payment details.`;
                           type="text"
                           required
                           value={customerDetails.salonName}
-                          onChange={(e) =>
-                            setCustomerDetails({ ...customerDetails, salonName: e.target.value })
-                          }
+                          onChange={(e) => {
+                            clearFieldError("salonName");
+                            setCustomerDetails({ ...customerDetails, salonName: e.target.value });
+                          }}
                           placeholder="e.g. Royal Barber Lounge"
                           style={{
                             width: "100%",
@@ -727,6 +769,9 @@ Please confirm my order dispatch timeline and payment details.`;
                             minHeight: 44,
                           }}
                         />
+                        {fieldErrors.salonName && (
+                          <span style={fieldErrorStyle}>{fieldErrors.salonName}</span>
+                        )}
                       </div>
                     </div>
 
@@ -741,7 +786,10 @@ Please confirm my order dispatch timeline and payment details.`;
                           required
                           inputMode="numeric"
                           value={customerDetails.phone}
-                          onChange={(e) => setCustomerDetails({ ...customerDetails, phone: e.target.value })}
+                          onChange={(e) => {
+                            clearFieldError("phone");
+                            setCustomerDetails({ ...customerDetails, phone: e.target.value });
+                          }}
                           placeholder="10-digit mobile"
                           style={{
                             width: "100%",
@@ -755,6 +803,9 @@ Please confirm my order dispatch timeline and payment details.`;
                             minHeight: 44,
                           }}
                         />
+                        {fieldErrors.phone && (
+                          <span style={fieldErrorStyle}>{fieldErrors.phone}</span>
+                        )}
                       </div>
 
                       <div>
@@ -766,9 +817,10 @@ Please confirm my order dispatch timeline and payment details.`;
                           type="text"
                           required
                           value={customerDetails.city}
-                          onChange={(e) =>
-                            setCustomerDetails({ ...customerDetails, city: e.target.value })
-                          }
+                          onChange={(e) => {
+                            clearFieldError("city");
+                            setCustomerDetails({ ...customerDetails, city: e.target.value });
+                          }}
                           placeholder="e.g. Pune / Mumbai"
                           style={{
                             width: "100%",
@@ -782,6 +834,9 @@ Please confirm my order dispatch timeline and payment details.`;
                             minHeight: 44,
                           }}
                         />
+                        {fieldErrors.city && (
+                          <span style={fieldErrorStyle}>{fieldErrors.city}</span>
+                        )}
                       </div>
                     </div>
 
@@ -794,7 +849,10 @@ Please confirm my order dispatch timeline and payment details.`;
                         type="text"
                         required
                         value={customerDetails.address}
-                        onChange={(e) => setCustomerDetails({ ...customerDetails, address: e.target.value })}
+                        onChange={(e) => {
+                          clearFieldError("address");
+                          setCustomerDetails({ ...customerDetails, address: e.target.value });
+                        }}
                         placeholder="Shop no, street, landmark"
                         style={{
                           width: "100%",
@@ -808,6 +866,9 @@ Please confirm my order dispatch timeline and payment details.`;
                           minHeight: 44,
                         }}
                       />
+                      {fieldErrors.address && (
+                        <span style={fieldErrorStyle}>{fieldErrors.address}</span>
+                      )}
                     </div>
 
                     <div className="form-grid-2col">
@@ -821,9 +882,10 @@ Please confirm my order dispatch timeline and payment details.`;
                           required
                           inputMode="numeric"
                           value={customerDetails.pincode}
-                          onChange={(e) =>
-                            setCustomerDetails({ ...customerDetails, pincode: e.target.value })
-                          }
+                          onChange={(e) => {
+                            clearFieldError("pincode");
+                            setCustomerDetails({ ...customerDetails, pincode: e.target.value });
+                          }}
                           placeholder="6-digit pincode"
                           style={{
                             width: "100%",
@@ -837,6 +899,9 @@ Please confirm my order dispatch timeline and payment details.`;
                             minHeight: 44,
                           }}
                         />
+                        {fieldErrors.pincode && (
+                          <span style={fieldErrorStyle}>{fieldErrors.pincode}</span>
+                        )}
                       </div>
 
                       <div>
@@ -847,7 +912,10 @@ Please confirm my order dispatch timeline and payment details.`;
                           id="cart-gstin"
                           type="text"
                           value={customerDetails.gstin}
-                          onChange={(e) => setCustomerDetails({ ...customerDetails, gstin: e.target.value })}
+                          onChange={(e) => {
+                            clearFieldError("gstin");
+                            setCustomerDetails({ ...customerDetails, gstin: e.target.value });
+                          }}
                           placeholder="27AAAAA0000A1Z5"
                           style={{
                             width: "100%",
@@ -861,6 +929,9 @@ Please confirm my order dispatch timeline and payment details.`;
                             minHeight: 44,
                           }}
                         />
+                        {fieldErrors.gstin && (
+                          <span style={fieldErrorStyle}>{fieldErrors.gstin}</span>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { saveOrderServer, verifyOrderTotals } from "@/lib/orders";
-import { isValidPincode, validateOrderCustomerPhone } from "@/lib/validation";
+import { validateOrderCustomerDetails } from "@/lib/validation";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/parse-json";
 import { Order } from "@/types";
@@ -25,29 +25,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const { customerDetails } = order;
-
-    if (
-      !customerDetails.fullName?.trim() ||
-      !customerDetails.salonName?.trim() ||
-      !customerDetails.address?.trim() ||
-      !customerDetails.city?.trim() ||
-      !customerDetails.pincode?.trim()
-    ) {
+    const customerValidation = validateOrderCustomerDetails(order.customerDetails);
+    if (!customerValidation.valid) {
       return NextResponse.json(
-        { error: "Missing required delivery details" },
-        { status: 400 }
-      );
-    }
-
-    const phoneCheck = validateOrderCustomerPhone(customerDetails.phone);
-    if (!phoneCheck.valid) {
-      return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
-    }
-
-    if (!isValidPincode(customerDetails.pincode)) {
-      return NextResponse.json(
-        { error: "Please enter a valid 6-digit Indian pincode" },
+        {
+          error: customerValidation.error,
+          fieldErrors: customerValidation.fieldErrors,
+        },
         { status: 400 }
       );
     }
@@ -62,10 +46,7 @@ export async function POST(req: Request) {
 
     const codOrder: Order = {
       ...order,
-      customerDetails: {
-        ...customerDetails,
-        phone: phoneCheck.phone,
-      },
+      customerDetails: customerValidation.data,
       subtotal: verification.verifiedSubtotal!,
       shipping: verification.verifiedShipping!,
       grandTotal: verification.verifiedGrandTotal!,

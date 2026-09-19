@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { submitBulkInquiry } from "@/lib/supabase";
 import { sendSlackInquiryNotification } from "@/lib/slack";
-import { INDIAN_PHONE_ERROR, normalizeIndianPhone } from "@/lib/validation";
+import { validateBulkInquiryLead } from "@/lib/validation";
 import { BulkInquiryLead } from "@/types";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/parse-json";
@@ -17,62 +17,15 @@ export async function POST(req: Request) {
   if (parseError) return parseError;
 
   try {
-    const {
-      salonName,
-      contactPerson,
-      phone,
-      email = "",
-      city,
-      state = "Maharashtra",
-      requirementType,
-      estimatedBudget,
-      message = "",
-    } = body as {
-      salonName?: string;
-      contactPerson?: string;
-      phone?: string;
-      email?: string;
-      city?: string;
-      state?: string;
-      requirementType?: string;
-      estimatedBudget?: string;
-      message?: string;
-    };
-
-    if (!salonName?.trim() || !contactPerson?.trim() || !phone?.trim() || !city?.trim()) {
+    const validation = validateBulkInquiryLead(body as unknown as BulkInquiryLead);
+    if (!validation.valid) {
       return NextResponse.json(
-        { error: "Missing required contact details" },
+        { error: validation.error, fieldErrors: validation.fieldErrors },
         { status: 400 }
       );
     }
 
-    const normalizedPhone = normalizeIndianPhone(phone);
-    if (!normalizedPhone) {
-      return NextResponse.json({ error: INDIAN_PHONE_ERROR }, { status: 400 });
-    }
-
-    const validRequirementTypes = [
-      "new_salon_setup",
-      "recurring_monthly_supply",
-      "custom_bulk_order",
-    ] as const;
-    const resolvedRequirementType = validRequirementTypes.includes(
-      requirementType as (typeof validRequirementTypes)[number]
-    )
-      ? (requirementType as BulkInquiryLead["requirementType"])
-      : "new_salon_setup";
-
-    const lead: BulkInquiryLead = {
-      salonName: salonName.trim(),
-      contactPerson: contactPerson.trim(),
-      phone: normalizedPhone,
-      email: email.trim(),
-      city: city.trim(),
-      state: state.trim(),
-      requirementType: resolvedRequirementType,
-      estimatedBudget: estimatedBudget || "₹50,000 - ₹1,50,000",
-      message: message.trim(),
-    };
+    const lead = validation.data;
 
     const dbResult = await submitBulkInquiry(lead);
     if (!dbResult.success) {

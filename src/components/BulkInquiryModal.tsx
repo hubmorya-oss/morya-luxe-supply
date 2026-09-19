@@ -4,8 +4,12 @@ import React, { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { X, Building2, MessageCircle, CheckCircle, Sparkles } from "lucide-react";
 import { BulkInquiryLead } from "@/types";
-import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
-import { INDIAN_PHONE_ERROR, normalizeIndianPhone } from "@/lib/validation";
+import { openWhatsApp, WHATSAPP_DISPLAY } from "@/lib/config";
+import {
+  FieldErrors,
+  INDIAN_PHONE_ERROR,
+  validateBulkInquiryLead,
+} from "@/lib/validation";
 
 export default function BulkInquiryModal() {
   const { isBulkInquiryOpen, setIsBulkInquiryOpen } = useCart();
@@ -24,34 +28,44 @@ export default function BulkInquiryModal() {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   if (!isBulkInquiryOpen) return null;
 
-  const validateForm = () => {
-    if (!formData.salonName.trim()) return "Please enter your salon / academy name";
-    if (!formData.contactPerson.trim()) return "Please enter contact person name";
-    if (!normalizeIndianPhone(formData.phone)) return INDIAN_PHONE_ERROR;
-    if (!formData.city.trim()) return "Please enter your city";
-    return null;
+  const fieldErrorStyle: React.CSSProperties = {
+    fontSize: "0.72rem",
+    color: "#fca5a5",
+    marginTop: "4px",
+    display: "block",
+  };
+
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validationError = validateForm();
-    if (validationError) {
-      setErrorMessage(validationError);
+    const validation = validateBulkInquiryLead(formData);
+    if (!validation.valid) {
+      setErrorMessage(validation.error);
+      setFieldErrors(validation.fieldErrors);
       return;
     }
 
-    const normalizedPhone = normalizeIndianPhone(formData.phone)!;
     setIsSubmitting(true);
     setErrorMessage("");
+    setFieldErrors({});
 
     try {
       const res = await fetch("/api/inquiry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, phone: normalizedPhone }),
+        body: JSON.stringify(validation.data),
       });
       const data = await res.json();
 
@@ -70,16 +84,25 @@ export default function BulkInquiryModal() {
   };
 
   const handleWhatsAppInstantQuote = () => {
-    const text = `*NEW B2B SALON SETUP / BULK INQUIRY*
-Salon: *${formData.salonName}*
-Contact: *${formData.contactPerson}*
-Phone: *${formData.phone}*
-Location: ${formData.city}, ${formData.state}
-Type: ${formData.requirementType.replace(/_/g, " ").toUpperCase()}
-Estimated Budget: ${formData.estimatedBudget}
-Details: ${formData.message || "Requesting custom quotation catalogue."}`;
+    const validation = validateBulkInquiryLead(formData);
+    if (!validation.valid) {
+      setErrorMessage(validation.error);
+      setFieldErrors(validation.fieldErrors);
+      setSubmitted(false);
+      return;
+    }
 
-    window.open(whatsappUrl(text), "_blank");
+    const lead = validation.data;
+    const text = `*NEW B2B SALON SETUP / BULK INQUIRY*
+Salon: *${lead.salonName}*
+Contact: *${lead.contactPerson}*
+Phone: *${lead.phone}*
+Location: ${lead.city}, ${lead.state}
+Type: ${lead.requirementType.replace(/_/g, " ").toUpperCase()}
+Estimated Budget: ${lead.estimatedBudget}
+Details: ${lead.message || "Requesting custom quotation catalogue."}`;
+
+    openWhatsApp(text);
     setIsBulkInquiryOpen(false);
   };
 
@@ -182,10 +205,16 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                   type="text"
                   required
                   value={formData.salonName}
-                  onChange={(e) => setFormData({ ...formData, salonName: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("salonName");
+                    setFormData({ ...formData, salonName: e.target.value });
+                  }}
                   placeholder="e.g. MasterCut Lounge"
                   style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
+                {fieldErrors.salonName && (
+                  <span style={fieldErrorStyle}>{fieldErrors.salonName}</span>
+                )}
               </div>
               <div>
                 <label htmlFor="inquiry-contactPerson" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
@@ -196,10 +225,16 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                   type="text"
                   required
                   value={formData.contactPerson}
-                  onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("contactPerson");
+                    setFormData({ ...formData, contactPerson: e.target.value });
+                  }}
                   placeholder="Your Name"
                   style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
+                {fieldErrors.contactPerson && (
+                  <span style={fieldErrorStyle}>{fieldErrors.contactPerson}</span>
+                )}
               </div>
             </div>
 
@@ -215,10 +250,16 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                   inputMode="tel"
                   title={INDIAN_PHONE_ERROR}
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("phone");
+                    setFormData({ ...formData, phone: e.target.value });
+                  }}
                   placeholder="10-digit number"
                   style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
+                {fieldErrors.phone && (
+                  <span style={fieldErrorStyle}>{fieldErrors.phone}</span>
+                )}
               </div>
               <div>
                 <label htmlFor="inquiry-city" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
@@ -229,10 +270,16 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                   type="text"
                   required
                   value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("city");
+                    setFormData({ ...formData, city: e.target.value });
+                  }}
                   placeholder="e.g. Pune, MH"
                   style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
+                {fieldErrors.city && (
+                  <span style={fieldErrorStyle}>{fieldErrors.city}</span>
+                )}
               </div>
             </div>
 
@@ -244,18 +291,22 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                 <select
                   id="inquiry-requirementType"
                   value={formData.requirementType}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                    clearFieldError("requirementType");
                     setFormData({
                       ...formData,
                       requirementType: e.target.value as BulkInquiryLead["requirementType"],
-                    })
-                  }
+                    });
+                  }}
                   style={{ width: "100%", background: "#131622", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 >
                   <option value="new_salon_setup">New Salon Setup (Chairs, Stations, Tools)</option>
                   <option value="recurring_monthly_supply">Recurring Monthly Salon Supplies</option>
                   <option value="custom_bulk_order">Wholesale Crate / Master Distribution</option>
                 </select>
+                {fieldErrors.requirementType && (
+                  <span style={fieldErrorStyle}>{fieldErrors.requirementType}</span>
+                )}
               </div>
 
               <div>
@@ -265,16 +316,21 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                 <select
                   id="inquiry-budget"
                   value={formData.estimatedBudget}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    setFormData({ ...formData, estimatedBudget: e.target.value })
-                  }
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                    clearFieldError("estimatedBudget");
+                    setFormData({ ...formData, estimatedBudget: e.target.value });
+                  }}
                   style={{ width: "100%", background: "#131622", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 >
                   <option value="₹25,000 - ₹50,000">₹25,000 - ₹50,000</option>
                   <option value="₹50,000 - ₹1,50,000">₹50,000 - ₹1,50,000</option>
+                  <option value="₹1,00,000 - ₹3,00,000">₹1,00,000 - ₹3,00,000</option>
                   <option value="₹1,50,000 - ₹3,50,000">₹1,50,000 - ₹3,50,000</option>
                   <option value="₹3,50,000+">₹3,50,000+ (Turnkey Setup)</option>
                 </select>
+                {fieldErrors.estimatedBudget && (
+                  <span style={fieldErrorStyle}>{fieldErrors.estimatedBudget}</span>
+                )}
               </div>
             </div>
 
@@ -286,10 +342,16 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                 id="inquiry-message"
                 rows={3}
                 value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                onChange={(e) => {
+                  clearFieldError("message");
+                  setFormData({ ...formData, message: e.target.value });
+                }}
                 placeholder="List items, brand preferences, or chair quantities needed..."
                 style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", resize: "vertical", minHeight: 88 }}
               />
+              {fieldErrors.message && (
+                <span style={fieldErrorStyle}>{fieldErrors.message}</span>
+              )}
             </div>
 
             <button

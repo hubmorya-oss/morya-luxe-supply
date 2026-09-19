@@ -4,6 +4,30 @@ import { isLiveRazorpayConfigured } from "@/lib/config";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/parse-json";
 
+type RazorpayApiError = {
+  statusCode?: number;
+  error?: { description?: string; code?: string };
+};
+
+function getRazorpayErrorStatus(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "statusCode" in error) {
+    const statusCode = (error as RazorpayApiError).statusCode;
+    return typeof statusCode === "number" ? statusCode : undefined;
+  }
+  return undefined;
+}
+
+function getRazorpayErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (error && typeof error === "object" && "error" in error) {
+    const description = (error as RazorpayApiError).error?.description;
+    if (description) return description;
+  }
+  return "Failed to create Razorpay order";
+}
+
 export async function POST(req: Request) {
   const ip = getClientIp(req);
   const rateCheck = checkRateLimit(`razorpay-order:${ip}`, 20, 60_000);
@@ -28,6 +52,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const amountPaise = Math.round(amount * 100);
+    if (amountPaise < 100) {
+      return NextResponse.json(
+        { error: "Minimum order amount is 100 paise (₹1)" },
+        { status: 400 }
+      );
+    }
+
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
@@ -38,7 +70,7 @@ export async function POST(req: Request) {
       });
 
       const order = await instance.orders.create({
-        amount: Math.round(amount * 100),
+        amount: amountPaise,
         currency,
         receipt,
         payment_capture: true,
@@ -46,9 +78,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         id: order.id,
+        order_id: order.id,
         amount: order.amount,
         currency: order.currency,
-        keyId,
         isMock: false,
       });
     }
@@ -56,14 +88,25 @@ export async function POST(req: Request) {
     const mockOrderId = `order_morya_test_${Date.now()}`;
     return NextResponse.json({
       id: mockOrderId,
-      amount: Math.round(amount * 100),
+      order_id: mockOrderId,
+      amount: amountPaise,
       currency: "INR",
-      keyId: keyId || "rzp_test_morya_demo",
       isMock: true,
     });
   } catch (error: unknown) {
     console.error("Razorpay order creation error:", error);
-    const msg = error instanceof Error ? error.message : "Failed to create Razorpay order";
-    return NextResponse.json({ error: msg }, { status: 500 });
+
+    const razorpayStatus = getRazorpayErrorStatus(error);
+    if (razorpayStatus === 401) {
+      return NextResponse.json(
+        { error: "Razorpay authentication failed. Check API keys." },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: getRazorpayErrorMessage(error) },
+      { status: razorpayStatus && razorpayStatus >= 400 && razorpayStatus < 600 ? razorpayStatus : 500 }
+    );
   }
 }
