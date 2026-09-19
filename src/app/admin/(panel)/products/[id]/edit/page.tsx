@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { fetchAdminProduct, fetchAdminCategories } from "@/lib/admin-data";
 import ProductForm from "@/components/admin/ProductForm";
+import DeleteProductButton from "@/components/admin/DeleteProductButton";
 
 export default async function EditProductPage({
   params,
@@ -21,6 +22,11 @@ export default async function EditProductPage({
     <>
       <div className="admin-header">
         <h1>Edit Product</h1>
+        <DeleteProductButton
+          id={product.id}
+          name={product.name}
+          redirectTo="/admin/products"
+        />
       </div>
       <ProductForm product={product} categories={categories} />
     </>

@@ -30,9 +30,13 @@ export async function getProducts(): Promise<Product[]> {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      console.warn("Supabase fetch returned empty/error, using default catalog:", error?.message);
+    if (error) {
+      console.warn("Supabase fetch failed, using default catalog:", error.message);
       return MOCK_PRODUCTS;
+    }
+
+    if (!data || data.length === 0) {
+      return [];
     }
 
     return data.map((item) => mapRowToProduct(item));

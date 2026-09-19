@@ -4,7 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteProduct } from "@/app/admin/actions";
 
-export default function DeleteProductButton({ id, name }: { id: string; name: string }) {
+export default function DeleteProductButton({
+  id,
+  name,
+  redirectTo,
+}: {
+  id: string;
+  name: string;
+  redirectTo?: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -13,6 +21,9 @@ export default function DeleteProductButton({ id, name }: { id: string; name: st
     setLoading(true);
     try {
       await deleteProduct(id);
+      if (redirectTo) {
+        router.push(redirectTo);
+      }
       router.refresh();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Delete failed");

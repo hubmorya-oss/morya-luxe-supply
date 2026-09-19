@@ -24,7 +24,36 @@ export default async function AdminProductsPage() {
 
       {error && <div className="admin-error" style={{ marginBottom: "16px" }}>{error}</div>}
 
-      <div className="admin-table-wrap">
+      <div className="admin-product-cards">
+        {products.length === 0 ? (
+          <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "24px 0" }}>
+            No products yet. Add your first product.
+          </p>
+        ) : (
+          products.map((p) => (
+          <div key={p.id} className="admin-product-card">
+            <div>
+              <strong>{p.name}</strong>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 0" }}>
+                {p.brand} · {p.categoryName}
+              </p>
+              <p style={{ fontSize: "0.85rem", marginTop: "8px" }}>
+                ₹{p.wholesalePrice.toLocaleString("en-IN")} · Stock: {p.stockCount} ·{" "}
+                {p.inStock ? "In stock" : "Out of stock"}
+              </p>
+            </div>
+            <div className="admin-product-card-actions">
+              <Link href={`/admin/products/${p.id}/edit`} className="admin-link">
+                Edit
+              </Link>
+              <DeleteProductButton id={p.id} name={p.name} />
+            </div>
+          </div>
+          ))
+        )}
+      </div>
+
+      <div className="admin-table-wrap admin-table-wrap-desktop">
         <table className="admin-table">
           <thead>
             <tr>
