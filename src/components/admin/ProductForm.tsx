@@ -18,6 +18,28 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
+function calcSavingsPercent(retailMrp: number, unitPrice: number): number {
+  if (retailMrp <= 0) return 0;
+  return Math.max(0, Math.round((1 - unitPrice / retailMrp) * 100));
+}
+
+type SpecRow = { key: string; value: string };
+
+function specsToRows(specs: Record<string, string>): SpecRow[] {
+  const rows = Object.entries(specs).map(([key, value]) => ({ key, value }));
+  return rows.length > 0 ? rows : [{ key: "", value: "" }];
+}
+
+function rowsToSpecs(rows: SpecRow[]): Record<string, string> {
+  const specs: Record<string, string> = {};
+  for (const row of rows) {
+    const key = row.key.trim();
+    const value = row.value.trim();
+    if (key && value) specs[key] = value;
+  }
+  return specs;
+}
+
 export default function ProductForm({ product, categories }: ProductFormProps) {
   const router = useRouter();
   const isEdit = Boolean(product);
@@ -47,14 +69,12 @@ export default function ProductForm({ product, categories }: ProductFormProps) {
     specs: product?.specs ?? {},
   });
 
-  const [tierJson, setTierJson] = useState(
-    JSON.stringify(product?.tierPricing ?? [], null, 2)
-  );
+  const [tiers, setTiers] = useState<PricingTier[]>(product?.tierPricing ?? []);
   const [featuresText, setFeaturesText] = useState(
     (product?.features ?? []).join("\n")
   );
-  const [specsText, setSpecsText] = useState(
-    JSON.stringify(product?.specs ?? {}, null, 2)
+  const [specRows, setSpecRows] = useState<SpecRow[]>(
+    specsToRows(product?.specs ?? {})
   );
 
   function updateField<K extends keyof ProductFormInput>(key: K, value: ProductFormInput[K]) {
@@ -65,6 +85,42 @@ export default function ProductForm({ product, categories }: ProductFormProps) {
     const cat = categories.find((c) => c.id === categoryId);
     updateField("category", categoryId);
     if (cat) updateField("categoryName", cat.name);
+  }
+
+  function updateTier(index: number, patch: Partial<PricingTier>) {
+    setTiers((prev) =>
+      prev.map((tier, i) => (i === index ? { ...tier, ...patch } : tier))
+    );
+  }
+
+  function addTier() {
+    setTiers((prev) => [
+      ...prev,
+      {
+        minQty: prev.length === 0 ? 1 : (prev[prev.length - 1]?.minQty ?? 1) + 5,
+        unitPrice: form.wholesalePrice,
+        label: "",
+        savingsPercent: calcSavingsPercent(form.retailMrp, form.wholesalePrice),
+      },
+    ]);
+  }
+
+  function removeTier(index: number) {
+    setTiers((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateSpecRow(index: number, patch: Partial<SpecRow>) {
+    setSpecRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row))
+    );
+  }
+
+  function addSpecRow() {
+    setSpecRows((prev) => [...prev, { key: "", value: "" }]);
+  }
+
+  function removeSpecRow(index: number) {
+    setSpecRows((prev) => (prev.length <= 1 ? [{ key: "", value: "" }] : prev.filter((_, i) => i !== index)));
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -93,20 +149,14 @@ export default function ProductForm({ product, categories }: ProductFormProps) {
     setError("");
 
     try {
-      let tierPricing: PricingTier[] = [];
-      let specs: Record<string, string> = {};
-
-      try {
-        tierPricing = JSON.parse(tierJson) as PricingTier[];
-      } catch {
-        throw new Error("Tier pricing must be valid JSON");
-      }
-
-      try {
-        specs = JSON.parse(specsText) as Record<string, string>;
-      } catch {
-        throw new Error("Specs must be valid JSON");
-      }
+      const tierPricing = tiers
+        .filter((tier) => tier.minQty >= 1 && tier.unitPrice >= 0)
+        .map((tier) => ({
+          ...tier,
+          label: tier.label.trim() || `Buy ${tier.minQty}+ units`,
+          savingsPercent: calcSavingsPercent(form.retailMrp, tier.unitPrice),
+        }))
+        .sort((a, b) => a.minQty - b.minQty);
 
       const payload: ProductFormInput = {
         ...form,
@@ -114,7 +164,7 @@ export default function ProductForm({ product, categories }: ProductFormProps) {
         slug: form.slug || slugify(form.name),
         tierPricing,
         features: featuresText.split("\n").map((f) => f.trim()).filter(Boolean),
-        specs,
+        specs: rowsToSpecs(specRows),
       };
 
       if (isEdit) {
@@ -329,13 +379,102 @@ export default function ProductForm({ product, categories }: ProductFormProps) {
       </div>
 
       <div className="admin-field">
-        <label htmlFor="tierPricing">Tier Pricing (JSON)</label>
-        <textarea id="tierPricing" value={tierJson} onChange={(e) => setTierJson(e.target.value)} style={{ fontFamily: "var(--font-mono)", minHeight: "120px" }} />
+        <label>Bulk price tiers (optional)</label>
+        <p className="admin-field-hint">
+          Leave empty to use wholesale price only. Add tiers for volume discounts (e.g. buy 5+ at lower price).
+        </p>
+        {tiers.length === 0 ? (
+          <p className="admin-field-hint">No bulk tiers — wholesale price applies for all quantities.</p>
+        ) : (
+          <div className="admin-repeat-list">
+            {tiers.map((tier, index) => (
+              <div key={index} className="admin-repeat-row">
+                <div className="admin-form-row">
+                  <div className="admin-field">
+                    <label>Min quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={tier.minQty}
+                      onChange={(e) => updateTier(index, { minQty: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="admin-field">
+                    <label>Price per unit (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={tier.unitPrice}
+                      onChange={(e) =>
+                        updateTier(index, { unitPrice: Number(e.target.value) })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="admin-field">
+                  <label>Label (shown on product page)</label>
+                  <input
+                    value={tier.label}
+                    onChange={(e) => updateTier(index, { label: e.target.value })}
+                    placeholder={`Salon Pack (${tier.minQty}+ units)`}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="admin-btn-danger"
+                  onClick={() => removeTier(index)}
+                >
+                  Remove tier
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button type="button" className="btn btn-secondary-outline admin-add-row-btn" onClick={addTier}>
+          + Add bulk price tier
+        </button>
       </div>
 
       <div className="admin-field">
-        <label htmlFor="specs">Specs (JSON key-value)</label>
-        <textarea id="specs" value={specsText} onChange={(e) => setSpecsText(e.target.value)} style={{ fontFamily: "var(--font-mono)", minHeight: "120px" }} />
+        <label>Product specifications</label>
+        <p className="admin-field-hint">
+          Details like motor type, warranty, material — shown in the product popup.
+        </p>
+        <div className="admin-repeat-list">
+          {specRows.map((row, index) => (
+            <div key={index} className="admin-repeat-row">
+              <div className="admin-form-row">
+                <div className="admin-field">
+                  <label>Name</label>
+                  <input
+                    value={row.key}
+                    onChange={(e) => updateSpecRow(index, { key: e.target.value })}
+                    placeholder="Warranty"
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>Detail</label>
+                  <input
+                    value={row.value}
+                    onChange={(e) => updateSpecRow(index, { value: e.target.value })}
+                    placeholder="1 Year Commercial"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="admin-btn-danger"
+                onClick={() => removeSpecRow(index)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="btn btn-secondary-outline admin-add-row-btn" onClick={addSpecRow}>
+          + Add specification
+        </button>
       </div>
 
       <div className="admin-actions">

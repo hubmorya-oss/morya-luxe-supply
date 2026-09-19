@@ -65,7 +65,19 @@ export default function AdminNav({ email }: { email: string }) {
         </div>
       </aside>
       <nav className="admin-mobile-nav">
-        <NavLinks />
+        <div className="admin-mobile-nav-links">
+          <NavLinks />
+        </div>
+        <div className="admin-mobile-nav-footer">
+          <span className="admin-mobile-nav-email">{email}</span>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="btn btn-secondary-outline admin-mobile-signout"
+          >
+            Sign Out
+          </button>
+        </div>
       </nav>
     </>
   );
