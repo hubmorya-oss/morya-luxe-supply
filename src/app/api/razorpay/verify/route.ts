@@ -1,22 +1,69 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrder } from "@/lib/supabase";
+import { saveOrderServer, verifyOrderTotals } from "@/lib/orders";
+import { isLiveRazorpayConfigured, isDemoModeEnabled } from "@/lib/config";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { parseJsonBody } from "@/lib/parse-json";
 import { Order } from "@/types";
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  const rateCheck = checkRateLimit(`verify:${ip}`, 15, 60_000);
+  if (!rateCheck.allowed) {
+    return rateLimitResponse(rateCheck.retryAfterSec!);
+  }
+
+  const { data: body, error: parseError } = await parseJsonBody(req);
+  if (parseError) return parseError;
+
   try {
-    const body = await req.json();
     const {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
       orderDetails,
-    } = body;
+      isDemo,
+    } = body as {
+      razorpay_order_id?: string;
+      razorpay_payment_id?: string;
+      razorpay_signature?: string;
+      orderDetails?: Order;
+      isDemo?: boolean;
+    };
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!razorpay_order_id || !razorpay_payment_id || !orderDetails) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Missing required fields: razorpay_order_id, razorpay_payment_id, orderDetails",
+        },
+        { status: 400 }
+      );
+    }
 
-    // In production with real Razorpay credentials, verify HMAC SHA256 signature
-    if (keySecret && keySecret !== "rzp_test_placeholder" && razorpay_signature) {
+    if (!orderDetails.items?.length || !orderDetails.customerDetails) {
+      return NextResponse.json(
+        { success: false, error: "Invalid order details payload" },
+        { status: 400 }
+      );
+    }
+
+    const isLive = isLiveRazorpayConfigured();
+    const isMockOrder =
+      isDemo === true ||
+      razorpay_order_id.startsWith("order_morya_test_") ||
+      razorpay_payment_id.startsWith("pay_demo_") ||
+      razorpay_payment_id.startsWith("pay_mock_");
+
+    if (isLive) {
+      const keySecret = process.env.RAZORPAY_KEY_SECRET!;
+      if (!razorpay_signature) {
+        return NextResponse.json(
+          { success: false, error: "Payment signature is required" },
+          { status: 400 }
+        );
+      }
+
       const generatedSignature = crypto
         .createHmac("sha256", keySecret)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -28,30 +75,60 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+    } else if (isMockOrder) {
+      const demoAllowed =
+        isDemoModeEnabled() || razorpay_order_id.startsWith("order_morya_test_");
+      if (!demoAllowed) {
+        return NextResponse.json(
+          { success: false, error: "Demo checkout is disabled" },
+          { status: 403 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { success: false, error: "Payment verification failed — invalid credentials or signature" },
+        { status: 400 }
+      );
     }
 
-    // Persist verified order
-    if (orderDetails) {
-      const completedOrder: Order = {
-        ...orderDetails,
-        paymentStatus: "paid",
-        razorpayOrderId: razorpay_order_id,
-        razorpayPaymentId: razorpay_payment_id,
-      };
+    const verification = await verifyOrderTotals(orderDetails);
+    if (!verification.valid) {
+      return NextResponse.json(
+        { success: false, error: verification.error },
+        { status: 400 }
+      );
+    }
 
-      await saveOrder(completedOrder);
+    const isDemoCheckout = isMockOrder && !isLive;
+    const completedOrder: Order = {
+      ...orderDetails,
+      subtotal: verification.verifiedSubtotal!,
+      shipping: verification.verifiedShipping!,
+      grandTotal: verification.verifiedGrandTotal!,
+      paymentStatus: isDemoCheckout ? "pending" : "paid",
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+    };
+
+    const saved = await saveOrderServer(completedOrder);
+    if (!saved.success) {
+      return NextResponse.json(
+        { success: false, error: saved.error || "Failed to persist order" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: "Payment verified and order booked successfully",
-      orderId: razorpay_order_id,
+      isDemo: isDemoCheckout,
+      message: isDemoCheckout
+        ? "Demo order recorded successfully (no payment captured)"
+        : "Payment verified and order booked successfully",
+      orderId: completedOrder.id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Payment verification error:", error);
-    return NextResponse.json(
-      { success: false, error: error?.message || "Verification failed" },
-      { status: 500 }
-    );
+    const msg = error instanceof Error ? error.message : "Verification failed";
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }

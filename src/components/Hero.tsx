@@ -3,10 +3,12 @@
 import React from "react";
 import Image from "next/image";
 import { MessageCircle, ArrowDown, Sparkles, CheckCircle2 } from "lucide-react";
+import { whatsappUrl } from "@/lib/config";
 
 export default function Hero({ onExploreClick }: { onExploreClick: () => void }) {
   return (
     <section
+      className="hero-section"
       style={{
         position: "relative",
         minHeight: "85vh",
@@ -146,6 +148,7 @@ export default function Hero({ onExploreClick }: { onExploreClick: () => void })
 
         {/* Action Buttons */}
         <div
+          className="hero-actions"
           style={{
             display: "flex",
             alignItems: "center",
@@ -166,7 +169,9 @@ export default function Hero({ onExploreClick }: { onExploreClick: () => void })
           </button>
 
           <a
-            href="https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20am%20a%20barber%20owner%20and%20want%20to%20place%20a%20wholesale%20order."
+            href={whatsappUrl(
+              "Hello Morya Luxe Supply, I am a barber owner and want to place a wholesale order."
+            )}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-whatsapp"
@@ -180,6 +185,7 @@ export default function Hero({ onExploreClick }: { onExploreClick: () => void })
 
         {/* Trust Badges Bar */}
         <div
+          className="hero-trust-badges"
           style={{
             display: "flex",
             alignItems: "center",

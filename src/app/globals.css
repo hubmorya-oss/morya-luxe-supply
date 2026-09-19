@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
-
 :root {
   /* Brand Color Tokens */
   --bg-deep: #07080b;
@@ -35,10 +33,10 @@
   --razorpay-blue: #2b83ea;
   --danger: #ef4444;
 
-  /* Typography */
-  --font-heading: 'Cinzel', serif;
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Space Grotesk', monospace;
+  /* Typography (loaded via next/font in layout.tsx) */
+  --font-heading: var(--font-cinzel), Georgia, serif;
+  --font-sans: var(--font-plus-jakarta), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-space-grotesk), ui-monospace, monospace;
 
   /* Shadows */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -187,6 +185,7 @@ h4, h5, h6 {
   border: none;
   outline: none;
   white-space: nowrap;
+  min-height: 44px;
 }
 
 .btn:active {
@@ -330,4 +329,427 @@ h4, h5, h6 {
 
 .slide-in-right {
   animation: slideInRight 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Responsive Overrides */
+.desktop-search { display: none; }
+.mobile-search-wrapper { display: block; }
+.mobile-toggle { display: block; }
+#desktop-bulk-quote-btn { display: none; }
+.desktop-announcement { display: none; }
+.navbar-cart-label { display: inline; }
+.announcement-bar-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.announcement-bar-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+@media (min-width: 900px) {
+  .desktop-search { display: block !important; }
+  .mobile-search-wrapper { display: none !important; }
+  .mobile-toggle { display: none !important; }
+  #desktop-bulk-quote-btn { display: inline-flex !important; }
+  .desktop-announcement { display: flex !important; align-items: center; gap: 6px; }
+}
+
+@media (max-width: 899px) {
+  .navbar-cart-label { display: none; }
+  .announcement-bar-right span:first-child { display: none; }
+  .nav-brand-logo { height: 38px !important; }
+  .nav-actions-group { gap: 8px !important; }
+  #header-cart-btn { padding: 10px 14px !important; min-width: 44px; }
+}
+
+@media (max-width: 480px) {
+  .announcement-bar-left span:first-child span:last-child { font-size: 0.72rem; }
+  .announcement-bar-right a { font-size: 0.78rem; }
+}
+
+/* Form grids — stack on mobile */
+.form-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 520px) {
+  .form-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cart drawer */
+.cart-drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 520px;
+  background: #0a0b10;
+  border-left: 1px solid var(--border-gold);
+  display: flex;
+  flex-direction: column;
+  z-index: 1001;
+  box-shadow: var(--shadow-lg);
+}
+@media (max-width: 480px) {
+  .cart-drawer-panel {
+    max-width: 100%;
+    border-left: none;
+  }
+  .cart-checkout-btn-text {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+  }
+}
+
+/* Modal panels */
+.modal-panel {
+  width: 100%;
+  max-width: 600px;
+  max-height: min(90vh, 90dvh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.modal-panel-wide {
+  max-width: 880px;
+}
+@media (max-width: 520px) {
+  .modal-panel,
+  .modal-panel-wide {
+    padding: 20px 16px !important;
+    max-height: min(92vh, 92dvh);
+    border-radius: var(--radius-md);
+  }
+}
+
+/* Product catalog grid */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 24px;
+}
+@media (max-width: 360px) {
+  .product-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* Floating WhatsApp — avoid covering CTAs on mobile */
+.floating-whatsapp {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  right: max(16px, env(safe-area-inset-right, 16px));
+  z-index: 990;
+}
+.floating-whatsapp-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 8px 30px rgba(37, 211, 102, 0.45);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.92rem;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  min-height: 44px;
+  min-width: 44px;
+}
+@media (max-width: 640px) {
+  .floating-whatsapp {
+    bottom: max(16px, env(safe-area-inset-bottom, 16px));
+    left: max(16px, env(safe-area-inset-left, 16px));
+    right: auto;
+  }
+  .floating-whatsapp-text {
+    display: none !important;
+  }
+  .floating-whatsapp-link {
+    padding: 0;
+    border-radius: 50%;
+    width: 52px;
+    height: 52px;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(37, 211, 102, 0.4);
+  }
+}
+
+/* Reserve space so floating widget does not cover footer CTAs */
+@media (max-width: 640px) {
+  body {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Hero responsive */
+.hero-section {
+  min-height: 85vh;
+}
+@media (max-width: 768px) {
+  .hero-section {
+    min-height: auto;
+    min-height: min(85vh, 720px);
+  }
+  .hero-trust-badges {
+    gap: 12px !important;
+    font-size: 0.82rem !important;
+  }
+  .hero-actions .btn {
+    width: 100%;
+    max-width: 340px;
+    white-space: normal;
+  }
+}
+
+/* Margin calculator */
+.margin-calculator-panel {
+  padding: 40px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.margin-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 32px;
+  align-items: center;
+  min-width: 0;
+}
+
+.margin-calculator-breakdown {
+  background: rgba(10, 11, 16, 0.8);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.margin-calculator-advantage-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--emerald-400);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.margin-calculator-rows {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.margin-calculator-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.margin-calculator-row-label {
+  color: var(--text-secondary);
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.margin-calculator-row-label-strong {
+  font-weight: 700;
+  color: #fff;
+}
+
+.margin-calculator-row-value {
+  flex: 0 0 auto;
+  font-weight: 700;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.margin-calculator-row-value-gold {
+  color: var(--gold-400);
+}
+
+.margin-calculator-row-value-emerald {
+  color: var(--emerald-400);
+}
+
+.margin-calculator-row-value-annual {
+  font-weight: 800;
+  color: var(--gold-300);
+  font-family: var(--font-mono);
+}
+
+.margin-calculator-row-total {
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.margin-calculator-cta {
+  width: 100%;
+  margin-top: 8px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .margin-calculator-panel {
+    padding: 24px 16px;
+  }
+
+  .margin-calculator-grid {
+    gap: 24px;
+  }
+
+  .margin-calculator-breakdown {
+    padding: 20px 16px;
+  }
+
+  .margin-calculator-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .margin-calculator-row-value {
+    text-align: left;
+  }
+
+  .margin-calculator-cta.btn {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.35;
+    padding: 12px 16px;
+    hyphens: auto;
+    overflow-wrap: anywhere;
+  }
+
+  /* Clearance for bottom-left floating WhatsApp icon */
+  .margin-calculator-cta {
+    scroll-margin-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 430px) {
+  .margin-calculator-panel {
+    padding: 20px 14px;
+  }
+
+  .margin-calculator-breakdown {
+    padding: 18px 14px;
+  }
+}
+
+/* Footer */
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .footer-bottom {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+/* Touch-friendly quantity controls */
+.qty-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 8px;
+}
+
+/* Screen reader only labels */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Prevent horizontal scroll */
+img, video, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Catalog section sort on mobile */
+.catalog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+@media (max-width: 640px) {
+  .catalog-sort-row {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .catalog-sort-row select {
+    flex: 1;
+    max-width: 220px;
+  }
+}
+
+/* Salon setup CTA banner */
+.salon-setup-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 28px;
+  padding: 48px 36px;
+}
+@media (max-width: 640px) {
+  .salon-setup-banner {
+    padding: 28px 20px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .salon-setup-banner .btn {
+    width: 100%;
+    white-space: normal;
+  }
+}
+
+/* Product modal action row */
+.product-modal-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .product-modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .product-modal-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }

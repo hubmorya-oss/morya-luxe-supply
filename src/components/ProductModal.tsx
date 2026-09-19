@@ -10,9 +10,9 @@ import {
   ShoppingBag,
   MessageCircle,
   Truck,
-  ShieldCheck,
   FileSpreadsheet,
 } from "lucide-react";
+import { whatsappUrl } from "@/lib/config";
 
 export default function ProductModal() {
   const { quickViewProduct, setQuickViewProduct, addToCart, calculateUnitTierPrice } = useCart();
@@ -32,13 +32,9 @@ export default function ProductModal() {
       style={{ zIndex: 1001 }}
     >
       <div
-        className="glass-panel-gold"
+        className="glass-panel-gold modal-panel modal-panel-wide"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "100%",
-          maxWidth: "880px",
-          maxHeight: "90vh",
-          overflowY: "auto",
           background: "#0c0e15",
           padding: "28px",
           position: "relative",
@@ -251,7 +247,7 @@ export default function ProductModal() {
             </div>
 
             {/* Quantity Selector & Action Buttons */}
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <div className="product-modal-actions">
               <div
                 style={{
                   display: "flex",
@@ -263,15 +259,9 @@ export default function ProductModal() {
                 }}
               >
                 <button
+                  className="qty-btn"
                   onClick={() => setSelectedQty(Math.max(quickViewProduct.moq || 1, selectedQty - 1))}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#fff",
-                    fontSize: "1.2rem",
-                    padding: "4px 12px",
-                    cursor: "pointer",
-                  }}
+                  aria-label="Decrease quantity"
                 >
                   -
                 </button>
@@ -279,15 +269,9 @@ export default function ProductModal() {
                   {selectedQty}
                 </span>
                 <button
+                  className="qty-btn"
                   onClick={() => setSelectedQty(selectedQty + 1)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#fff",
-                    fontSize: "1.2rem",
-                    padding: "4px 12px",
-                    cursor: "pointer",
-                  }}
+                  aria-label="Increase quantity"
                 >
                   +
                 </button>
@@ -306,9 +290,9 @@ export default function ProductModal() {
               </button>
 
               <a
-                href={`https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20want%20to%20order%20${selectedQty}%20units%20of:%20${encodeURIComponent(
-                  quickViewProduct.name
-                )}%20(Wholesale:%20₹${totalCost})`}
+                href={whatsappUrl(
+                  `Hello Morya Luxe Supply, I want to order ${selectedQty} units of: ${quickViewProduct.name} (Wholesale: ₹${totalCost})`
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-whatsapp"

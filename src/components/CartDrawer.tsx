@@ -9,15 +9,13 @@ import {
   ShoppingBag,
   MessageCircle,
   CreditCard,
-  Building2,
-  MapPin,
-  FileSpreadsheet,
-  CheckCircle,
-  Truck,
-  ArrowRight,
+  Info,
+  CheckCircle2,
 } from "lucide-react";
 import { Order } from "@/types";
-import { saveOrder } from "@/lib/supabase";
+import { saveOrderToLocalStorage } from "@/lib/supabase";
+import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
+import { formatItemCount, isValidIndianPhone, isValidPincode } from "@/lib/validation";
 
 export default function CartDrawer() {
   const {
@@ -36,28 +34,39 @@ export default function CartDrawer() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<Order | null>(null);
+  const [isDemoOrder, setIsDemoOrder] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   if (!isCartOpen) return null;
 
-  // Free shipping threshold ₹5,000
   const freeShippingThreshold = 5000;
   const amountNeededForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
   const progressPercent = Math.min(100, (subtotal / freeShippingThreshold) * 100);
+  const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
 
-  // Validate form details
+  const buildOrderItems = () =>
+    cart.map((c) => ({
+      productId: c.product.id,
+      productName: c.product.name,
+      unitPrice: c.activeTierPrice,
+      quantity: c.quantity,
+      subtotal: c.subtotal,
+    }));
+
   const validateForm = () => {
-    if (!customerDetails.fullName.trim()) return "Please enter your name";
+    if (!customerDetails.fullName.trim()) return "Please enter your owner/barber name";
     if (!customerDetails.salonName.trim()) return "Please enter your salon / barbershop name";
-    if (!customerDetails.phone.trim() || customerDetails.phone.trim().length < 10)
-      return "Please enter a valid 10-digit mobile number";
+    if (!isValidIndianPhone(customerDetails.phone.trim())) {
+      return "Please enter a valid 10-digit Indian mobile number";
+    }
     if (!customerDetails.address.trim()) return "Please enter delivery address";
     if (!customerDetails.city.trim()) return "Please enter your city";
-    if (!customerDetails.pincode.trim()) return "Please enter your pincode";
+    if (!isValidPincode(customerDetails.pincode.trim())) {
+      return "Please enter a valid 6-digit Indian pincode";
+    }
     return null;
   };
 
-  // 1-Click WhatsApp B2B Checkout
   const handleWhatsAppCheckout = async () => {
     const error = validateForm();
     if (error) {
@@ -65,39 +74,44 @@ export default function CartDrawer() {
       return;
     }
     setErrorMessage("");
+    setIsProcessing(true);
 
-    const orderId = `MLS-WA-${Date.now().toString().slice(-6)}`;
-    const newOrder: Order = {
-      id: orderId,
-      customerDetails,
-      items: cart.map((c) => ({
-        productId: c.product.id,
-        productName: c.product.name,
-        unitPrice: c.activeTierPrice,
-        quantity: c.quantity,
-        subtotal: c.subtotal,
-      })),
-      subtotal,
-      wholesaleSavings,
-      shipping: subtotal >= 5000 ? 0 : 199,
-      gstAmount: Math.round(subtotal * 0.18),
-      grandTotal,
-      paymentMethod: "whatsapp",
-      paymentStatus: "cod_requested",
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const orderId = `MLS-WA-${Date.now().toString().slice(-6)}`;
+      const newOrder: Order = {
+        id: orderId,
+        customerDetails,
+        items: buildOrderItems(),
+        subtotal,
+        wholesaleSavings,
+        shipping: subtotal >= 5000 ? 0 : 199,
+        gstAmount: Math.round(subtotal * 0.18),
+        grandTotal,
+        paymentMethod: "whatsapp",
+        paymentStatus: "cod_requested",
+        createdAt: new Date().toISOString(),
+      };
 
-    await saveOrder(newOrder);
+      const res = await fetch("/api/orders/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: newOrder }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to save order");
+      }
 
-    // Format WhatsApp message
-    const itemLines = cart
-      .map(
-        (item, i) =>
-          `${i + 1}. *${item.product.name}*\n   Qty: ${item.quantity} units @ ₹${item.activeTierPrice} = *₹${item.subtotal.toLocaleString("en-IN")}*`
-      )
-      .join("\n\n");
+      saveOrderToLocalStorage(newOrder);
 
-    const message = `*NEW B2B WHOLESALE ORDER - MORYA LUXE SUPPLY*
+      const itemLines = cart
+        .map(
+          (item, i) =>
+            `${i + 1}. *${item.product.name}*\n   Qty: ${item.quantity} units @ ₹${item.activeTierPrice} = *₹${item.subtotal.toLocaleString("en-IN")}*`
+        )
+        .join("\n\n");
+
+      const message = `*NEW B2B WHOLESALE ORDER - MORYA LUXE SUPPLY*
 Order ID: #${orderId}
 ----------------------------------------
 *Salon Details:*
@@ -117,14 +131,45 @@ ${itemLines}
 ----------------------------------------
 Please confirm my order dispatch timeline and payment details.`;
 
-    const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/918805589150?text=${encoded}`, "_blank");
+      window.open(whatsappUrl(message), "_blank");
+      setIsDemoOrder(false);
+      setOrderSuccess(newOrder);
+      clearCart();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to process WhatsApp order";
+      setErrorMessage(msg);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-    setOrderSuccess(newOrder);
+  const completeVerifiedOrder = async (
+    pendingOrder: Order,
+    verifyPayload: Record<string, unknown>
+  ) => {
+    const verifyRes = await fetch("/api/razorpay/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(verifyPayload),
+    });
+    const verifyData = await verifyRes.json();
+
+    if (!verifyRes.ok || !verifyData.success) {
+      throw new Error(verifyData.error || "Payment verification failed");
+    }
+
+    const completedOrder: Order = {
+      ...pendingOrder,
+      paymentStatus: verifyData.isDemo ? "pending" : "paid",
+      razorpayPaymentId: verifyPayload.razorpay_payment_id as string,
+    };
+
+    saveOrderToLocalStorage(completedOrder);
+    setIsDemoOrder(Boolean(verifyData.isDemo));
+    setOrderSuccess(completedOrder);
     clearCart();
   };
 
-  // Razorpay Online Payment Checkout
   const handleRazorpayCheckout = async () => {
     const error = validateForm();
     if (error) {
@@ -135,7 +180,6 @@ Please confirm my order dispatch timeline and payment details.`;
     setIsProcessing(true);
 
     try {
-      // 1. Create order on server
       const res = await fetch("/api/razorpay/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -153,13 +197,7 @@ Please confirm my order dispatch timeline and payment details.`;
       const pendingOrder: Order = {
         id: tempOrderId,
         customerDetails,
-        items: cart.map((c) => ({
-          productId: c.product.id,
-          productName: c.product.name,
-          unitPrice: c.activeTierPrice,
-          quantity: c.quantity,
-          subtotal: c.subtotal,
-        })),
+        items: buildOrderItems(),
         subtotal,
         wholesaleSavings,
         shipping: subtotal >= 5000 ? 0 : 199,
@@ -171,8 +209,11 @@ Please confirm my order dispatch timeline and payment details.`;
         createdAt: new Date().toISOString(),
       };
 
-      // Check if window.Razorpay SDK is loaded
-      if (typeof window !== "undefined" && (window as any).Razorpay && !orderData.isMock) {
+      if (
+        typeof window !== "undefined" &&
+        (window as unknown as { Razorpay: unknown }).Razorpay &&
+        !orderData.isMock
+      ) {
         const options = {
           key: orderData.keyId,
           amount: orderData.amount,
@@ -181,56 +222,52 @@ Please confirm my order dispatch timeline and payment details.`;
           description: `Wholesale Supply - ${customerDetails.salonName}`,
           image: "/images/icon.svg",
           order_id: orderData.id,
-          handler: async function (response: any) {
-            // Verify payment
-            await fetch("/api/razorpay/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+          handler: async function (response: Record<string, string>) {
+            try {
+              await completeVerifiedOrder(pendingOrder, {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 orderDetails: pendingOrder,
-              }),
-            });
-
-            setOrderSuccess({
-              ...pendingOrder,
-              paymentStatus: "paid",
-              razorpayPaymentId: response.razorpay_payment_id,
-            });
-            clearCart();
-            setIsProcessing(false);
+              });
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : "Verification failed";
+              setErrorMessage(msg);
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+          modal: {
+            ondismiss: () => setIsProcessing(false),
           },
           prefill: {
             name: customerDetails.fullName,
             contact: customerDetails.phone,
             email: customerDetails.email || "barber@moryaluxesupply.com",
           },
-          theme: {
-            color: "#D4AF37",
-          },
+          theme: { color: "#D4AF37" },
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rzp = new (window as any).Razorpay(options);
+        rzp.on("payment.failed", () => {
+          setErrorMessage("Payment failed. Please try again or use WhatsApp checkout.");
+          setIsProcessing(false);
+        });
         rzp.open();
       } else {
-        // Mock / Demo mode (triggers when testing without live secret keys)
-        setTimeout(async () => {
-          const completed = {
-            ...pendingOrder,
-            paymentStatus: "paid" as const,
-            razorpayPaymentId: `pay_mock_${Date.now()}`,
-          };
-          await saveOrder(completed);
-          setOrderSuccess(completed);
-          clearCart();
-          setIsProcessing(false);
-        }, 1200);
+        await completeVerifiedOrder(pendingOrder, {
+          razorpay_order_id: orderData.id,
+          razorpay_payment_id: `pay_demo_${Date.now()}`,
+          orderDetails: pendingOrder,
+          isDemo: true,
+        });
+        setIsProcessing(false);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Razorpay Error:", err);
-      setErrorMessage(err.message || "Failed to initiate payment");
+      const msg = err instanceof Error ? err.message : "Failed to initiate payment";
+      setErrorMessage(msg);
       setIsProcessing(false);
     }
   };
@@ -238,24 +275,9 @@ Please confirm my order dispatch timeline and payment details.`;
   return (
     <div className="drawer-overlay" onClick={() => setIsCartOpen(false)}>
       <div
-        className="slide-in-right"
+        className="slide-in-right cart-drawer-panel"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: "100%",
-          maxWidth: "520px",
-          background: "#0a0b10",
-          borderLeft: "1px solid var(--border-gold)",
-          display: "flex",
-          flexDirection: "column",
-          zIndex: 1001,
-          boxShadow: "var(--shadow-lg)",
-        }}
       >
-        {/* Drawer Header */}
         <div
           style={{
             padding: "20px 24px",
@@ -264,9 +286,10 @@ Please confirm my order dispatch timeline and payment details.`;
             alignItems: "center",
             justifyContent: "space-between",
             background: "#0e1017",
+            flexShrink: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
             <ShoppingBag size={22} color="var(--gold-400)" />
             <h2 style={{ fontSize: "1.2rem", fontWeight: 800 }}>Wholesale Cart</h2>
             <span
@@ -277,9 +300,10 @@ Please confirm my order dispatch timeline and payment details.`;
                 padding: "2px 8px",
                 borderRadius: "12px",
                 fontWeight: 700,
+                whiteSpace: "nowrap",
               }}
             >
-              {cart.reduce((s, i) => s + i.quantity, 0)} items
+              {formatItemCount(cartItemCount)}
             </span>
           </div>
 
@@ -290,6 +314,11 @@ Please confirm my order dispatch timeline and payment details.`;
               border: "none",
               color: "#fff",
               cursor: "pointer",
+              minWidth: 44,
+              minHeight: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
             aria-label="Close cart drawer"
           >
@@ -297,7 +326,6 @@ Please confirm my order dispatch timeline and payment details.`;
           </button>
         </div>
 
-        {/* Order Success Screen */}
         {orderSuccess ? (
           <div
             style={{
@@ -308,6 +336,7 @@ Please confirm my order dispatch timeline and payment details.`;
               alignItems: "center",
               gap: "18px",
               margin: "auto 0",
+              overflowY: "auto",
             }}
           >
             <div
@@ -315,22 +344,38 @@ Please confirm my order dispatch timeline and payment details.`;
                 width: "70px",
                 height: "70px",
                 borderRadius: "50%",
-                background: "rgba(16, 185, 129, 0.15)",
-                border: "2px solid var(--emerald-400)",
+                background: isDemoOrder
+                  ? "rgba(212, 175, 55, 0.15)"
+                  : "rgba(16, 185, 129, 0.15)",
+                border: `2px solid ${isDemoOrder ? "var(--gold-400)" : "var(--emerald-400)"}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <CheckCircle size={40} color="var(--emerald-400)" />
+              <CheckCircle2
+                size={40}
+                color={isDemoOrder ? "var(--gold-400)" : "var(--emerald-400)"}
+              />
             </div>
 
-            <h3 style={{ fontSize: "1.5rem", fontWeight: 800 }}>Order Placed Successfully!</h3>
+            <h3 style={{ fontSize: "1.5rem", fontWeight: 800 }}>
+              {isDemoOrder ? "Demo Order Recorded!" : "Order Placed Successfully!"}
+            </h3>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.6 }}>
               Order Reference: <strong style={{ color: "var(--gold-400)" }}>#{orderSuccess.id}</strong>
               <br />
-              Confirmation sent for salon <strong>{orderSuccess.customerDetails.salonName}</strong>.
-              Our wholesale dispatch desk is packing your order.
+              {isDemoOrder ? (
+                <>
+                  This is a <strong>demo checkout</strong> — no payment was captured.
+                  Configure live Razorpay keys for production payments.
+                </>
+              ) : (
+                <>
+                  Confirmation sent for salon <strong>{orderSuccess.customerDetails.salonName}</strong>.
+                  Our wholesale dispatch desk is packing your order.
+                </>
+              )}
             </p>
 
             <div
@@ -344,20 +389,24 @@ Please confirm my order dispatch timeline and payment details.`;
                 fontSize: "0.85rem",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span style={{ color: "var(--text-muted)" }}>Total Paid / Billed:</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", gap: "8px" }}>
+                <span style={{ color: "var(--text-muted)" }}>
+                  {isDemoOrder ? "Demo Total:" : "Total Paid / Billed:"}
+                </span>
                 <span style={{ fontWeight: 800, color: "var(--gold-400)" }}>
                   ₹{orderSuccess.grandTotal.toLocaleString("en-IN")}
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
                 <span style={{ color: "var(--text-muted)" }}>Delivery Target:</span>
                 <span>48 - 72 Hours (Express Surface)</span>
               </div>
             </div>
 
             <a
-              href={`https://wa.me/918805589150?text=Hi%20Morya%20Luxe%20Supply,%20I%20placed%20order%20%23${orderSuccess.id}.%20Please%20send%20GST%20Invoice.`}
+              href={whatsappUrl(
+                `Hi Morya Luxe Supply, I placed order #${orderSuccess.id}. Please send GST Invoice.`
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-whatsapp"
@@ -370,6 +419,7 @@ Please confirm my order dispatch timeline and payment details.`;
             <button
               onClick={() => {
                 setOrderSuccess(null);
+                setIsDemoOrder(false);
                 setIsCartOpen(false);
               }}
               className="btn btn-secondary-outline"
@@ -380,18 +430,18 @@ Please confirm my order dispatch timeline and payment details.`;
           </div>
         ) : (
           <>
-            {/* Free Shipping / Bulk Progress Bar */}
             <div
               style={{
                 padding: "12px 24px",
                 background: "rgba(212, 175, 55, 0.05)",
                 borderBottom: "1px solid rgba(212, 175, 55, 0.15)",
                 fontSize: "0.8rem",
+                flexShrink: 0,
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Truck size={14} color="var(--gold-400)" />
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", gap: "8px" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
+                  <Info size={14} color="var(--gold-400)" style={{ flexShrink: 0 }} />
                   {amountNeededForFreeShipping === 0 ? (
                     <strong style={{ color: "var(--emerald-400)" }}>
                       Unlocked FREE Express Courier!
@@ -402,7 +452,7 @@ Please confirm my order dispatch timeline and payment details.`;
                     </span>
                   )}
                 </span>
-                <span style={{ fontWeight: 700 }}>{Math.round(progressPercent)}%</span>
+                <span style={{ fontWeight: 700, flexShrink: 0 }}>{Math.round(progressPercent)}%</span>
               </div>
               <div
                 style={{
@@ -423,7 +473,6 @@ Please confirm my order dispatch timeline and payment details.`;
               </div>
             </div>
 
-            {/* Scrollable Content: Items & Checkout Form */}
             <div
               style={{
                 flex: 1,
@@ -432,6 +481,7 @@ Please confirm my order dispatch timeline and payment details.`;
                 display: "flex",
                 flexDirection: "column",
                 gap: "24px",
+                WebkitOverflowScrolling: "touch",
               }}
             >
               {cart.length === 0 ? (
@@ -458,7 +508,6 @@ Please confirm my order dispatch timeline and payment details.`;
                 </div>
               ) : (
                 <>
-                  {/* Cart Items List */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                     <div style={{ fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", color: "var(--gold-400)", letterSpacing: "0.05em" }}>
                       Wholesale Items:
@@ -477,7 +526,6 @@ Please confirm my order dispatch timeline and payment details.`;
                           alignItems: "center",
                         }}
                       >
-                        {/* Thumbnail */}
                         <div
                           style={{
                             position: "relative",
@@ -497,15 +545,16 @@ Please confirm my order dispatch timeline and payment details.`;
                           />
                         </div>
 
-                        {/* Details */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <h4
                             style={{
                               fontSize: "0.88rem",
                               fontWeight: 700,
-                              whiteSpace: "nowrap",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
                               color: "#fff",
                             }}
                           >
@@ -516,7 +565,6 @@ Please confirm my order dispatch timeline and payment details.`;
                             <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>/ unit</span>
                           </div>
 
-                          {/* Quantity Controls */}
                           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
                             <div
                               style={{
@@ -528,14 +576,8 @@ Please confirm my order dispatch timeline and payment details.`;
                               }}
                             >
                               <button
+                                className="qty-btn"
                                 onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  color: "#fff",
-                                  padding: "2px 8px",
-                                  cursor: "pointer",
-                                }}
                               >
                                 -
                               </button>
@@ -543,14 +585,8 @@ Please confirm my order dispatch timeline and payment details.`;
                                 {item.quantity}
                               </span>
                               <button
+                                className="qty-btn"
                                 onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  color: "#fff",
-                                  padding: "2px 8px",
-                                  cursor: "pointer",
-                                }}
                               >
                                 +
                               </button>
@@ -563,7 +599,12 @@ Please confirm my order dispatch timeline and payment details.`;
                                 border: "none",
                                 color: "var(--text-muted)",
                                 cursor: "pointer",
-                                padding: "4px",
+                                padding: "8px",
+                                minWidth: 44,
+                                minHeight: 44,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
                               }}
                               aria-label="Remove item"
                             >
@@ -572,8 +613,7 @@ Please confirm my order dispatch timeline and payment details.`;
                           </div>
                         </div>
 
-                        {/* Line Subtotal */}
-                        <div style={{ textAlign: "right" }}>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
                           <span
                             style={{
                               fontFamily: "var(--font-mono)",
@@ -589,7 +629,6 @@ Please confirm my order dispatch timeline and payment details.`;
                     ))}
                   </div>
 
-                  {/* Salon Delivery & Billing Form */}
                   <div
                     style={{
                       background: "rgba(255, 255, 255, 0.02)",
@@ -602,12 +641,13 @@ Please confirm my order dispatch timeline and payment details.`;
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--gold-300)", fontWeight: 800, fontSize: "0.88rem" }}>
-                      <Building2 size={16} />
+                      <Info size={16} />
                       <span>Salon Delivery &amp; GST Details:</span>
                     </div>
 
                     {errorMessage && (
                       <div
+                        role="alert"
                         style={{
                           background: "rgba(239, 68, 68, 0.15)",
                           border: "1px solid rgba(239, 68, 68, 0.3)",
@@ -621,62 +661,72 @@ Please confirm my order dispatch timeline and payment details.`;
                       </div>
                     )}
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div className="form-grid-2col">
                       <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                        <label htmlFor="cart-fullName" style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                           Owner / Barber Name *
                         </label>
                         <input
+                          id="cart-fullName"
                           type="text"
                           required
                           value={customerDetails.fullName}
-                          onChange={(e) => setCustomerDetails({ ...customerDetails, fullName: e.target.value })}
+                          onChange={(e) =>
+                            setCustomerDetails({ ...customerDetails, fullName: e.target.value })
+                          }
                           placeholder="e.g. Ramesh Sharma"
                           style={{
                             width: "100%",
                             background: "rgba(255, 255, 255, 0.05)",
                             border: "1px solid var(--border-subtle)",
                             borderRadius: "6px",
-                            padding: "8px 10px",
+                            padding: "10px",
                             color: "#fff",
                             fontSize: "0.85rem",
                             outline: "none",
+                            minHeight: 44,
                           }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                        <label htmlFor="cart-salonName" style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                           Salon / Shop Name *
                         </label>
                         <input
+                          id="cart-salonName"
                           type="text"
                           required
                           value={customerDetails.salonName}
-                          onChange={(e) => setCustomerDetails({ ...customerDetails, salonName: e.target.value })}
+                          onChange={(e) =>
+                            setCustomerDetails({ ...customerDetails, salonName: e.target.value })
+                          }
                           placeholder="e.g. Royal Barber Lounge"
                           style={{
                             width: "100%",
                             background: "rgba(255, 255, 255, 0.05)",
                             border: "1px solid var(--border-subtle)",
                             borderRadius: "6px",
-                            padding: "8px 10px",
+                            padding: "10px",
                             color: "#fff",
                             fontSize: "0.85rem",
                             outline: "none",
+                            minHeight: 44,
                           }}
                         />
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div className="form-grid-2col">
                       <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                        <label htmlFor="cart-phone" style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                           Mobile Number *
                         </label>
                         <input
+                          id="cart-phone"
                           type="tel"
                           required
+                          inputMode="numeric"
                           value={customerDetails.phone}
                           onChange={(e) => setCustomerDetails({ ...customerDetails, phone: e.target.value })}
                           placeholder="10-digit mobile"
@@ -685,43 +735,49 @@ Please confirm my order dispatch timeline and payment details.`;
                             background: "rgba(255, 255, 255, 0.05)",
                             border: "1px solid var(--border-subtle)",
                             borderRadius: "6px",
-                            padding: "8px 10px",
+                            padding: "10px",
                             color: "#fff",
                             fontSize: "0.85rem",
                             outline: "none",
+                            minHeight: 44,
                           }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                        <label htmlFor="cart-city" style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                           City / Town *
                         </label>
                         <input
+                          id="cart-city"
                           type="text"
                           required
                           value={customerDetails.city}
-                          onChange={(e) => setCustomerDetails({ ...customerDetails, city: e.target.value })}
+                          onChange={(e) =>
+                            setCustomerDetails({ ...customerDetails, city: e.target.value })
+                          }
                           placeholder="e.g. Pune / Mumbai"
                           style={{
                             width: "100%",
                             background: "rgba(255, 255, 255, 0.05)",
                             border: "1px solid var(--border-subtle)",
                             borderRadius: "6px",
-                            padding: "8px 10px",
+                            padding: "10px",
                             color: "#fff",
                             fontSize: "0.85rem",
                             outline: "none",
+                            minHeight: 44,
                           }}
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                      <label htmlFor="cart-address" style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                         Delivery Address *
                       </label>
                       <input
+                        id="cart-address"
                         type="text"
                         required
                         value={customerDetails.address}
@@ -732,43 +788,50 @@ Please confirm my order dispatch timeline and payment details.`;
                           background: "rgba(255, 255, 255, 0.05)",
                           border: "1px solid var(--border-subtle)",
                           borderRadius: "6px",
-                          padding: "8px 10px",
+                          padding: "10px",
                           color: "#fff",
                           fontSize: "0.85rem",
                           outline: "none",
+                          minHeight: 44,
                         }}
                       />
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div className="form-grid-2col">
                       <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                        <label htmlFor="cart-pincode" style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                           Pincode *
                         </label>
                         <input
+                          id="cart-pincode"
                           type="text"
                           required
+                          inputMode="numeric"
                           value={customerDetails.pincode}
-                          onChange={(e) => setCustomerDetails({ ...customerDetails, pincode: e.target.value })}
+                          onChange={(e) =>
+                            setCustomerDetails({ ...customerDetails, pincode: e.target.value })
+                          }
                           placeholder="6-digit pincode"
                           style={{
                             width: "100%",
                             background: "rgba(255, 255, 255, 0.05)",
                             border: "1px solid var(--border-subtle)",
                             borderRadius: "6px",
-                            padding: "8px 10px",
+                            padding: "10px",
                             color: "#fff",
                             fontSize: "0.85rem",
                             outline: "none",
+                            minHeight: 44,
                           }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                        <label htmlFor="cart-gstin" style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                           GSTIN (Optional for ITC)
                         </label>
                         <input
+                          id="cart-gstin"
                           type="text"
                           value={customerDetails.gstin}
                           onChange={(e) => setCustomerDetails({ ...customerDetails, gstin: e.target.value })}
@@ -778,10 +841,11 @@ Please confirm my order dispatch timeline and payment details.`;
                             background: "rgba(255, 255, 255, 0.05)",
                             border: "1px solid var(--border-subtle)",
                             borderRadius: "6px",
-                            padding: "8px 10px",
+                            padding: "10px",
                             color: "#fff",
                             fontSize: "0.85rem",
                             outline: "none",
+                            minHeight: 44,
                           }}
                         />
                       </div>
@@ -791,19 +855,19 @@ Please confirm my order dispatch timeline and payment details.`;
               )}
             </div>
 
-            {/* Bottom Checkout Actions */}
             {cart.length > 0 && (
               <div
                 style={{
                   padding: "20px 24px",
+                  paddingBottom: "max(20px, env(safe-area-inset-bottom))",
                   borderTop: "1px solid rgba(255, 255, 255, 0.08)",
                   background: "#0c0d14",
                   display: "flex",
                   flexDirection: "column",
                   gap: "14px",
+                  flexShrink: 0,
                 }}
               >
-                {/* Financial Summary */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "0.88rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)" }}>
                     <span>Wholesale Subtotal:</span>
@@ -840,24 +904,22 @@ Please confirm my order dispatch timeline and payment details.`;
                   </div>
                 </div>
 
-                {/* Dual Checkout Action Buttons */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {/* WhatsApp Direct Order */}
                   <button
                     onClick={handleWhatsAppCheckout}
-                    className="btn btn-whatsapp"
-                    style={{ width: "100%", padding: "14px 20px", fontSize: "0.95rem" }}
+                    disabled={isProcessing}
+                    className="btn btn-whatsapp cart-checkout-btn-text"
+                    style={{ width: "100%", padding: "14px 20px", fontSize: "0.95rem", opacity: isProcessing ? 0.7 : 1 }}
                     id="cart-whatsapp-checkout-btn"
                   >
                     <MessageCircle size={18} />
-                    <span>1-Click Order on WhatsApp (+91 88055 89150)</span>
+                    <span>1-Click Order on WhatsApp ({WHATSAPP_DISPLAY})</span>
                   </button>
 
-                  {/* Razorpay Online Payment */}
                   <button
                     onClick={handleRazorpayCheckout}
                     disabled={isProcessing}
-                    className="btn btn-razorpay"
+                    className="btn btn-razorpay cart-checkout-btn-text"
                     style={{
                       width: "100%",
                       padding: "13px 20px",

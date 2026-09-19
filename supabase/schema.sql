@@ -84,22 +84,21 @@ alter table public.products enable row level security;
 alter table public.orders enable row level security;
 alter table public.bulk_inquiries enable row level security;
 
--- Public can read products
+-- Drop legacy permissive policies if re-running this script
+drop policy if exists "Allow public read-only access to products" on public.products;
+drop policy if exists "Allow public insert into orders" on public.orders;
+drop policy if exists "Allow read orders by id" on public.orders;
+drop policy if exists "Allow public insert into bulk_inquiries" on public.bulk_inquiries;
+
+-- Public can read products (catalog)
 create policy "Allow public read-only access to products"
   on public.products for select
   using (true);
 
--- Public can insert orders (for checkout)
-create policy "Allow public insert into orders"
-  on public.orders for insert
-  with check (true);
+-- Orders: NO public read or insert — all writes via service role (API routes)
+-- Service role bypasses RLS automatically.
 
--- Public can read their own order by ID
-create policy "Allow read orders by id"
-  on public.orders for select
-  using (true);
-
--- Public can insert bulk inquiries
+-- Public can submit bulk inquiries only
 create policy "Allow public insert into bulk_inquiries"
   on public.bulk_inquiries for insert
   with check (true);

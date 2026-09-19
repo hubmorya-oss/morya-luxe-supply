@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Product } from "@/types";
 import { useCart } from "@/context/CartContext";
 import { ShoppingBag, Eye, Star, Tag, MessageCircle } from "lucide-react";
+import { whatsappUrl } from "@/lib/config";
 
 export default function ProductCard({ product }: { product: Product }) {
   const { addToCart, setQuickViewProduct } = useCart();
@@ -259,9 +260,9 @@ export default function ProductCard({ product }: { product: Product }) {
           </button>
 
           <a
-            href={`https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20want%20wholesale%20rates%20for:%20${encodeURIComponent(
-              product.name
-            )}%20(Wholesale:%20₹${product.wholesalePrice})`}
+            href={whatsappUrl(
+              `Hello Morya Luxe Supply, I want wholesale rates for: ${product.name} (Wholesale: ₹${product.wholesalePrice})`
+            )}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-secondary-outline"

@@ -18,11 +18,10 @@ import {
   Scissors,
   Sparkles,
   Search,
-  Filter,
   ArrowUpDown,
   Building2,
-  CheckCircle2,
 } from "lucide-react";
+import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
 
 function MainAppContent() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -50,6 +49,16 @@ function MainAppContent() {
     }
   };
 
+  // Scroll to catalog when user starts searching
+  useEffect(() => {
+    if (searchTerm.trim() && catalogRef.current) {
+      const rect = catalogRef.current.getBoundingClientRect();
+      if (rect.top > window.innerHeight || rect.bottom < 0) {
+        scrollToCatalog();
+      }
+    }
+  }, [searchTerm]);
+
   const categories: { id: ProductCategory; label: string }[] = [
     { id: "all", label: "All Wholesale Gear" },
     { id: "clippers-trimmers", label: "Clippers & Trimmers" },
@@ -74,10 +83,10 @@ function MainAppContent() {
       const q = searchTerm.toLowerCase();
       result = result.filter(
         (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          p.categoryName.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q)
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.brand && p.brand.toLowerCase().includes(q)) ||
+          (p.categoryName && p.categoryName.toLowerCase().includes(q)) ||
+          (p.description && p.description.toLowerCase().includes(q))
       );
     }
 
@@ -121,16 +130,7 @@ function MainAppContent() {
       >
         <div className="container">
           {/* Section Heading */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-              flexWrap: "wrap",
-              gap: "20px",
-              marginBottom: "36px",
-            }}
-          >
+          <div className="catalog-header" style={{ marginBottom: "36px" }}>
             <div>
               <div
                 style={{
@@ -157,13 +157,13 @@ function MainAppContent() {
             </div>
 
             {/* Sort Controls */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div className="catalog-sort-row" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
                 <ArrowUpDown size={15} /> Sort:
               </span>
               <select
                 value={sortBy}
-                onChange={(e: any) => setSortBy(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value as "featured" | "margin" | "price-asc" | "price-desc" | "rating")}
                 style={{
                   background: "#131622",
                   border: "1px solid var(--border-gold)",
@@ -253,13 +253,7 @@ function MainAppContent() {
               </button>
             </div>
           ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: "24px",
-              }}
-            >
+            <div className="product-grid">
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -275,17 +269,11 @@ function MainAppContent() {
       <section style={{ padding: "64px 0", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
         <div className="container">
           <div
-            className="glass-panel"
+            className="glass-panel salon-setup-banner"
             style={{
-              padding: "48px 36px",
               background: "linear-gradient(135deg, rgba(21, 24, 38, 0.95) 0%, rgba(10, 11, 16, 0.98) 100%)",
               border: "1px solid var(--border-gold)",
               borderRadius: "var(--radius-xl)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "28px",
             }}
           >
             <div style={{ maxWidth: "680px" }}>
@@ -324,13 +312,15 @@ function MainAppContent() {
               </button>
 
               <a
-                href="https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20am%20opening%20a%20new%20salon%20and%20need%20a%20full%20equipment%20quote."
+                href={whatsappUrl(
+                  "Hello Morya Luxe Supply, I am opening a new salon and need a full equipment quote."
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-whatsapp"
                 style={{ padding: "14px 28px", fontSize: "0.95rem" }}
               >
-                <span>Chat Direct (+91 88055 89150)</span>
+                <span>Chat Direct ({WHATSAPP_DISPLAY})</span>
               </a>
             </div>
           </div>

@@ -1,7 +1,8 @@
 import React from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { Phone, MessageCircle, MapPin, Mail, ShieldCheck, Truck, FileSpreadsheet } from "lucide-react";
+// Removed Link
+import { Phone, MessageCircle, MapPin, ShieldCheck, FileSpreadsheet } from "lucide-react";
+import { whatsappUrl, telUrl, WHATSAPP_DISPLAY } from "@/lib/config";
 
 export default function Footer() {
   return (
@@ -140,7 +141,7 @@ export default function Footer() {
             </p>
 
             <a
-              href="tel:+918805589150"
+              href={telUrl()}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -152,11 +153,13 @@ export default function Footer() {
               }}
             >
               <Phone size={18} color="var(--gold-400)" />
-              <span>+91 88055 89150</span>
+              <span>{WHATSAPP_DISPLAY}</span>
             </a>
 
             <a
-              href="https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20am%20a%20salon%20owner%20and%20need%20wholesale%20rates."
+              href={whatsappUrl(
+                "Hello Morya Luxe Supply, I am a salon owner and need wholesale rates."
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-whatsapp"
@@ -175,14 +178,10 @@ export default function Footer() {
 
         {/* Bottom Copyright & Disclaimer */}
         <div
+          className="footer-bottom"
           style={{
             paddingTop: "24px",
             borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "12px",
             fontSize: "0.78rem",
             color: "var(--text-muted)",
           }}

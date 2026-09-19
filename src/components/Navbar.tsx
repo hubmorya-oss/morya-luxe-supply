@@ -15,6 +15,7 @@ import {
   Sparkles,
   Building2,
 } from "lucide-react";
+import { whatsappUrl, telUrl, WHATSAPP_DISPLAY } from "@/lib/config";
 
 export default function Navbar({
   searchTerm,
@@ -28,7 +29,6 @@ export default function Navbar({
 
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 100, width: "100%" }}>
-      {/* B2B Top Announcement Bar */}
       <div
         style={{
           background: "linear-gradient(90deg, #090a0f 0%, #151824 50%, #090a0f 100%)",
@@ -48,23 +48,23 @@ export default function Navbar({
             gap: "8px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div className="announcement-bar-left">
             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <Truck size={14} color="var(--gold-400)" />
               <span>Pan-India 48hr Courier Dispatch</span>
             </span>
-            <span style={{ display: "none" }} className="desktop-announcement">
+            <span className="desktop-announcement">
               <ShieldCheck size={14} color="var(--emerald-400)" />
               <span>100% Genuine Barber Gear &amp; GST Invoices</span>
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <div className="announcement-bar-right">
             <span style={{ color: "var(--gold-400)", fontWeight: 600 }}>
               Direct Wholesale Desk:
             </span>
             <a
-              href="tel:+918805589150"
+              href={telUrl()}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -72,13 +72,16 @@ export default function Navbar({
                 color: "#fff",
                 fontWeight: 700,
                 letterSpacing: "0.03em",
+                minHeight: 44,
               }}
             >
               <Phone size={13} color="var(--gold-400)" />
-              +91 88055 89150
+              {WHATSAPP_DISPLAY}
             </a>
             <a
-              href="https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20am%20a%20salon%20owner%20and%20need%20wholesale%20rates."
+              href={whatsappUrl(
+                "Hello Morya Luxe Supply, I am a salon owner and need wholesale rates."
+              )}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -87,6 +90,7 @@ export default function Navbar({
                 gap: "4px",
                 color: "var(--whatsapp-green)",
                 fontWeight: 700,
+                minHeight: 44,
               }}
             >
               <MessageCircle size={14} />
@@ -96,7 +100,6 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Main Navigation Bar */}
       <nav
         style={{
           background: "rgba(10, 11, 16, 0.92)",
@@ -112,36 +115,39 @@ export default function Navbar({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: "20px",
+            gap: "12px",
           }}
         >
-          {/* Brand Logo */}
-          <Link href="/" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", textDecoration: "none", flexShrink: 0 }}>
             <Image
               src="/images/logo.svg"
               alt="Morya Luxe Supply Logo"
               width={260}
               height={55}
               priority
-              style={{ height: "46px", width: "auto" }}
+              className="nav-brand-logo"
+              style={{ height: "46px", width: "auto", maxWidth: "min(200px, 45vw)" }}
             />
           </Link>
 
-          {/* Desktop Search Bar */}
           <div
             style={{
               flex: "1",
               maxWidth: "420px",
-              display: "none",
               position: "relative",
             }}
             className="desktop-search"
           >
+            <label htmlFor="desktop-search-input" className="sr-only">
+              Search products
+            </label>
             <input
-              type="text"
+              id="desktop-search-input"
+              type="search"
               placeholder="Search clippers, shears, chairs, pomades..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Search clippers, shears, chairs, pomades and salon equipment"
               style={{
                 width: "100%",
                 background: "rgba(255, 255, 255, 0.05)",
@@ -152,6 +158,7 @@ export default function Navbar({
                 fontSize: "0.9rem",
                 outline: "none",
                 transition: "all var(--transition-fast)",
+                minHeight: 44,
               }}
               onFocus={(e) => (e.target.style.borderColor = "var(--gold-400)")}
               onBlur={(e) => (e.target.style.borderColor = "rgba(212, 175, 55, 0.25)")}
@@ -170,15 +177,13 @@ export default function Navbar({
             </span>
           </div>
 
-          {/* Desktop Navigation Actions */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div className="nav-actions-group" style={{ display: "flex", alignItems: "center", gap: "16px", flexShrink: 0 }}>
             <button
               onClick={() => setIsBulkInquiryOpen(true)}
               className="btn btn-secondary-outline"
               style={{
                 padding: "8px 18px",
                 fontSize: "0.85rem",
-                display: "none",
               }}
               id="desktop-bulk-quote-btn"
             >
@@ -186,7 +191,6 @@ export default function Navbar({
               <span>Salon Setup &amp; Bulk Quote</span>
             </button>
 
-            {/* Cart Button */}
             <button
               onClick={() => setIsCartOpen(true)}
               className="btn btn-primary-gold"
@@ -196,10 +200,12 @@ export default function Navbar({
                 position: "relative",
               }}
               id="header-cart-btn"
-              aria-label="Open wholesale cart"
+              aria-label={`Open wholesale cart${totalItemsCount > 0 ? `, ${totalItemsCount} items` : ""}`}
             >
               <ShoppingBag size={18} />
-              <span style={{ fontWeight: 800 }}>Wholesale Cart</span>
+              <span className="navbar-cart-label" style={{ fontWeight: 800 }}>
+                Wholesale Cart
+              </span>
               {totalItemsCount > 0 && (
                 <span
                   style={{
@@ -216,45 +222,48 @@ export default function Navbar({
                     marginLeft: "4px",
                     border: "1px solid var(--gold-400)",
                   }}
+                  aria-hidden="true"
                 >
                   {totalItemsCount}
                 </span>
               )}
             </button>
 
-            {/* Mobile Hamburger Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               style={{
-                display: "none",
                 background: "transparent",
                 border: "1px solid var(--border-subtle)",
                 borderRadius: "8px",
                 color: "#fff",
                 padding: "8px",
                 cursor: "pointer",
+                minWidth: 44,
+                minHeight: 44,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               className="mobile-toggle"
-              aria-label="Toggle navigation menu"
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Search Input (Visible on small screens) */}
-        <div
-          className="mobile-search-wrapper"
-          style={{
-            display: "none",
-            padding: "12px 20px 2px",
-          }}
-        >
+        <div className="mobile-search-wrapper" style={{ padding: "12px 20px 2px" }}>
+          <label htmlFor="mobile-search-input" className="sr-only">
+            Search products
+          </label>
           <input
-            type="text"
+            id="mobile-search-input"
+            type="search"
             placeholder="Search barber tools &amp; equipment..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Search barber tools and equipment"
             style={{
               width: "100%",
               background: "rgba(255, 255, 255, 0.05)",
@@ -264,11 +273,11 @@ export default function Navbar({
               color: "#fff",
               fontSize: "0.9rem",
               outline: "none",
+              minHeight: 44,
             }}
           />
         </div>
 
-        {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
           <div
             style={{
@@ -292,51 +301,28 @@ export default function Navbar({
               <span>Salon Setup &amp; Bulk Quote</span>
             </button>
             <a
-              href="tel:+918805589150"
+              href={telUrl()}
               className="btn btn-secondary-outline"
               style={{ width: "100%", justifyContent: "flex-start" }}
             >
               <Phone size={18} color="var(--gold-400)" />
-              <span>Call Direct: +91 88055 89150</span>
+              <span>Call Direct: {WHATSAPP_DISPLAY}</span>
             </a>
             <a
-              href="https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20am%20interested%20in%20wholesale%20orders."
+              href={whatsappUrl(
+                "Hello Morya Luxe Supply, I am interested in wholesale orders."
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-whatsapp"
               style={{ width: "100%" }}
             >
               <MessageCircle size={18} />
-              <span>Chat on WhatsApp (+91 88055 89150)</span>
+              <span>Chat on WhatsApp ({WHATSAPP_DISPLAY})</span>
             </a>
           </div>
         )}
       </nav>
-
-      {/* Inline styles for responsive visibility */}
-      <style jsx>{`
-        @media (min-width: 900px) {
-          .desktop-search {
-            display: block !important;
-          }
-          #desktop-bulk-quote-btn {
-            display: inline-flex !important;
-          }
-          .desktop-announcement {
-            display: flex !important;
-            align-items: center;
-            gap: 6px;
-          }
-        }
-        @media (max-width: 899px) {
-          .mobile-search-wrapper {
-            display: block !important;
-          }
-          .mobile-toggle {
-            display: block !important;
-          }
-        }
-      `}</style>
     </header>
   );
 }

@@ -7,8 +7,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
-  supabaseAnonKey &&
-  supabaseUrl !== "https://your-project.supabase.co"
+    supabaseAnonKey &&
+    supabaseUrl !== "https://your-project.supabase.co"
 );
 
 export const supabase = isSupabaseConfigured
@@ -34,7 +34,7 @@ export async function getProducts(): Promise<Product[]> {
       return MOCK_PRODUCTS;
     }
 
-    // Map database snake_case to TypeScript camelCase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return data.map((item: any) => ({
       id: item.id,
       slug: item.slug,
@@ -62,64 +62,25 @@ export async function getProducts(): Promise<Product[]> {
   }
 }
 
-/**
- * Save an order to Supabase or local storage backup
- */
-export async function saveOrder(order: Order): Promise<{ success: boolean; orderId: string }> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { error } = await supabase.from("orders").insert([
-        {
-          id: order.id,
-          customer_name: order.customerDetails.fullName,
-          salon_name: order.customerDetails.salonName,
-          phone: order.customerDetails.phone,
-          email: order.customerDetails.email || null,
-          address: order.customerDetails.address,
-          city: order.customerDetails.city,
-          state: order.customerDetails.state,
-          pincode: order.customerDetails.pincode,
-          gstin: order.customerDetails.gstin || null,
-          items: order.items,
-          subtotal: order.subtotal,
-          wholesale_savings: order.wholesaleSavings,
-          shipping: order.shipping,
-          gst_amount: order.gstAmount,
-          grand_total: order.grandTotal,
-          payment_method: order.paymentMethod,
-          payment_status: order.paymentStatus,
-          razorpay_order_id: order.razorpayOrderId || null,
-          razorpay_payment_id: order.razorpayPaymentId || null,
-          order_notes: order.customerDetails.orderNotes || null,
-        },
-      ]);
+/** Client-side local order history only — no Supabase writes from browser */
+export function saveOrderToLocalStorage(order: Order): void {
+  if (typeof window === "undefined") return;
 
-      if (error) {
-        console.error("Failed to insert order to Supabase:", error.message);
-      }
-    } catch (err) {
-      console.error("Error saving order to Supabase:", err);
-    }
+  try {
+    const existing = JSON.parse(localStorage.getItem("morya_orders") || "[]");
+    existing.unshift(order);
+    localStorage.setItem("morya_orders", JSON.stringify(existing.slice(0, 20)));
+  } catch (e) {
+    console.warn("Could not save to localStorage:", e);
   }
-
-  // Also persist in browser localStorage for client review
-  if (typeof window !== "undefined") {
-    try {
-      const existing = JSON.parse(localStorage.getItem("morya_orders") || "[]");
-      existing.unshift(order);
-      localStorage.setItem("morya_orders", JSON.stringify(existing.slice(0, 20)));
-    } catch (e) {
-      console.warn("Could not save to localStorage:", e);
-    }
-  }
-
-  return { success: true, orderId: order.id };
 }
 
 /**
- * Submit B2B Salon Setup / Bulk Quote Lead
+ * Submit B2B Salon Setup / Bulk Quote Lead (server-side via API; direct for SSR if needed)
  */
-export async function submitBulkInquiry(lead: BulkInquiryLead): Promise<{ success: boolean }> {
+export async function submitBulkInquiry(
+  lead: BulkInquiryLead
+): Promise<{ success: boolean; error?: string }> {
   if (isSupabaseConfigured && supabase) {
     try {
       const { error } = await supabase.from("bulk_inquiries").insert([
@@ -137,11 +98,16 @@ export async function submitBulkInquiry(lead: BulkInquiryLead): Promise<{ succes
       ]);
       if (error) {
         console.error("Supabase inquiry insert failed:", error.message);
+        return { success: false, error: error.message };
       }
+      return { success: true };
     } catch (err) {
       console.error("Supabase inquiry submission exception:", err);
+      const msg = err instanceof Error ? err.message : "Database error";
+      return { success: false, error: msg };
     }
   }
 
+  // No Supabase — still accept inquiry (Slack may notify)
   return { success: true };
 }

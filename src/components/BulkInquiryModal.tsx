@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { X, Building2, MessageCircle, CheckCircle, Sparkles } from "lucide-react";
 import { BulkInquiryLead } from "@/types";
-import { submitBulkInquiry } from "@/lib/supabase";
+import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
 
 export default function BulkInquiryModal() {
   const { isBulkInquiryOpen, setIsBulkInquiryOpen } = useCart();
@@ -22,15 +22,35 @@ export default function BulkInquiryModal() {
 
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   if (!isBulkInquiryOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    await submitBulkInquiry(formData);
-    setIsSubmitting(false);
-    setSubmitted(true);
+    setErrorMessage("");
+
+    try {
+      const res = await fetch("/api/inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error || "Failed to submit inquiry. Please try again.");
+        return;
+      }
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Inquiry submission error:", err);
+      setErrorMessage("Network error. Please check your connection and try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleWhatsAppInstantQuote = () => {
@@ -43,23 +63,19 @@ Type: ${formData.requirementType.replace(/_/g, " ").toUpperCase()}
 Estimated Budget: ${formData.estimatedBudget}
 Details: ${formData.message || "Requesting custom quotation catalogue."}`;
 
-    window.open(`https://wa.me/918805589150?text=${encodeURIComponent(text)}`, "_blank");
+    window.open(whatsappUrl(text), "_blank");
     setIsBulkInquiryOpen(false);
   };
 
   return (
     <div className="modal-overlay" onClick={() => setIsBulkInquiryOpen(false)}>
       <div
-        className="glass-panel-gold"
+        className="glass-panel-gold modal-panel"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "100%",
-          maxWidth: "600px",
           background: "#0d0f18",
           padding: "32px",
           position: "relative",
-          maxHeight: "90vh",
-          overflowY: "auto",
         }}
       >
         <button
@@ -72,8 +88,13 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
             border: "none",
             color: "#fff",
             cursor: "pointer",
+            minWidth: 44,
+            minHeight: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
-          aria-label="Close"
+          aria-label="Close bulk inquiry dialog"
         >
           <X size={22} />
         </button>
@@ -93,7 +114,7 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
               style={{ width: "100%", padding: "14px" }}
             >
               <MessageCircle size={18} />
-              <span>Connect on WhatsApp for Instant Catalog (+91 88055 89150)</span>
+              <span>Connect on WhatsApp for Instant Catalog ({WHATSAPP_DISPLAY})</span>
             </button>
             <button
               onClick={() => {
@@ -119,73 +140,102 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
               </p>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            {errorMessage && (
+              <div
+                role="alert"
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  color: "#fca5a5",
+                  padding: "10px 12px",
+                  borderRadius: "6px",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {errorMessage}
+              </div>
+            )}
+
+            <div className="form-grid-2col">
               <div>
-                <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                <label htmlFor="inquiry-salonName" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                   Salon / Academy Name *
                 </label>
                 <input
+                  id="inquiry-salonName"
                   type="text"
                   required
                   value={formData.salonName}
                   onChange={(e) => setFormData({ ...formData, salonName: e.target.value })}
                   placeholder="e.g. MasterCut Lounge"
-                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none" }}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                <label htmlFor="inquiry-contactPerson" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                   Contact Person *
                 </label>
                 <input
+                  id="inquiry-contactPerson"
                   type="text"
                   required
                   value={formData.contactPerson}
                   onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
                   placeholder="Your Name"
-                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none" }}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div className="form-grid-2col">
               <div>
-                <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                <label htmlFor="inquiry-phone" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                   Mobile (WhatsApp) *
                 </label>
                 <input
+                  id="inquiry-phone"
                   type="tel"
                   required
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  title="Please enter a valid 10-digit Indian mobile number starting with 6-9"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="10-digit number"
-                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none" }}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                <label htmlFor="inquiry-city" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                   City, State *
                 </label>
                 <input
+                  id="inquiry-city"
                   type="text"
                   required
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   placeholder="e.g. Pune, MH"
-                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none" }}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 />
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div className="form-grid-2col">
               <div>
-                <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                <label htmlFor="inquiry-requirementType" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                   Requirement Type
                 </label>
                 <select
+                  id="inquiry-requirementType"
                   value={formData.requirementType}
-                  onChange={(e: any) => setFormData({ ...formData, requirementType: e.target.value })}
-                  style={{ width: "100%", background: "#131622", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none" }}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setFormData({
+                      ...formData,
+                      requirementType: e.target.value as BulkInquiryLead["requirementType"],
+                    })
+                  }
+                  style={{ width: "100%", background: "#131622", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 >
                   <option value="new_salon_setup">New Salon Setup (Chairs, Stations, Tools)</option>
                   <option value="recurring_monthly_supply">Recurring Monthly Salon Supplies</option>
@@ -194,13 +244,16 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
               </div>
 
               <div>
-                <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                <label htmlFor="inquiry-budget" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                   Estimated Budget
                 </label>
                 <select
+                  id="inquiry-budget"
                   value={formData.estimatedBudget}
-                  onChange={(e) => setFormData({ ...formData, estimatedBudget: e.target.value })}
-                  style={{ width: "100%", background: "#131622", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none" }}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setFormData({ ...formData, estimatedBudget: e.target.value })
+                  }
+                  style={{ width: "100%", background: "#131622", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", minHeight: 44 }}
                 >
                   <option value="₹25,000 - ₹50,000">₹25,000 - ₹50,000</option>
                   <option value="₹50,000 - ₹1,50,000">₹50,000 - ₹1,50,000</option>
@@ -211,15 +264,16 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
             </div>
 
             <div>
-              <label style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+              <label htmlFor="inquiry-message" style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
                 Equipment or Products Needed
               </label>
               <textarea
+                id="inquiry-message"
                 rows={3}
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 placeholder="List items, brand preferences, or chair quantities needed..."
-                style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", resize: "none" }}
+                style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "10px", color: "#fff", outline: "none", resize: "vertical", minHeight: 88 }}
               />
             </div>
 

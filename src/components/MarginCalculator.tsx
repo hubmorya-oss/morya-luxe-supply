@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Calculator, TrendingUp, Sparkles, CheckCircle2 } from "lucide-react";
+import { Calculator, TrendingUp } from "lucide-react";
+import { whatsappUrl } from "@/lib/config";
 
 export default function MarginCalculator() {
   const [chairsCount, setChairsCount] = useState(3);
@@ -25,9 +26,8 @@ export default function MarginCalculator() {
     <section style={{ padding: "72px 0", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
       <div className="container">
         <div
-          className="glass-panel-gold"
+          className="glass-panel-gold margin-calculator-panel"
           style={{
-            padding: "40px",
             background: "linear-gradient(135deg, rgba(14, 16, 23, 0.95) 0%, rgba(20, 24, 38, 0.95) 100%)",
           }}
         >
@@ -59,14 +59,7 @@ export default function MarginCalculator() {
             </p>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: "32px",
-              alignItems: "center",
-            }}
-          >
+          <div className="margin-calculator-grid">
             {/* Input Sliders */}
             <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
               {/* Slider 1: Salon Barber Stations */}
@@ -126,19 +119,9 @@ export default function MarginCalculator() {
             </div>
 
             {/* Live Benefit Breakdown Cards */}
-            <div
-              style={{
-                background: "rgba(10, 11, 16, 0.8)",
-                border: "1px solid var(--border-gold)",
-                borderRadius: "var(--radius-lg)",
-                padding: "28px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "18px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--emerald-400)", fontWeight: 700 }}>
-                <TrendingUp size={20} />
+            <div className="margin-calculator-breakdown">
+              <div className="margin-calculator-advantage-title">
+                <TrendingUp size={20} aria-hidden="true" />
                 <span>Estimated Monthly Net Financial Advantage:</span>
               </div>
 
@@ -155,31 +138,40 @@ export default function MarginCalculator() {
                 <span style={{ fontSize: "1rem", color: "var(--text-secondary)", fontWeight: 500 }}> / month</span>
               </div>
 
-              <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: "14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.85rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>Backbar Supply Savings ({monthlyClients.toLocaleString("en-IN")} services):</span>
-                  <span style={{ fontWeight: 700, color: "var(--gold-400)" }}>+₹{backbarMonthlySavings.toLocaleString("en-IN")}</span>
+              <div className="margin-calculator-rows">
+                <div className="margin-calculator-row">
+                  <span className="margin-calculator-row-label">
+                    Backbar Supply Savings ({monthlyClients.toLocaleString("en-IN")} services):
+                  </span>
+                  <span className="margin-calculator-row-value margin-calculator-row-value-gold">
+                    +₹{backbarMonthlySavings.toLocaleString("en-IN")}
+                  </span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>Retail Resale Profit (Counter Sales):</span>
-                  <span style={{ fontWeight: 700, color: "var(--emerald-400)" }}>+₹{monthlyRetailProfit.toLocaleString("en-IN")}</span>
+                <div className="margin-calculator-row">
+                  <span className="margin-calculator-row-label">Retail Resale Profit (Counter Sales):</span>
+                  <span className="margin-calculator-row-value margin-calculator-row-value-emerald">
+                    +₹{monthlyRetailProfit.toLocaleString("en-IN")}
+                  </span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "6px", borderTop: "1px dashed var(--border-subtle)" }}>
-                  <span style={{ fontWeight: 700, color: "#fff" }}>Annual Cumulative Salon Profit:</span>
-                  <span style={{ fontWeight: 800, color: "var(--gold-300)", fontFamily: "var(--font-mono)" }}>
+                <div className="margin-calculator-row margin-calculator-row-total">
+                  <span className="margin-calculator-row-label margin-calculator-row-label-strong">
+                    Annual Cumulative Salon Profit:
+                  </span>
+                  <span className="margin-calculator-row-value margin-calculator-row-value-annual">
                     ₹{totalAnnualBenefit.toLocaleString("en-IN")} / year
                   </span>
                 </div>
               </div>
 
               <a
-                href="https://wa.me/918805589150?text=Hello%20Morya%20Luxe%20Supply,%20I%20used%20your%20Wholesale%20Calculator%20and%20want%20to%20place%20a%20recurring%20supply%20order."
+                href={whatsappUrl(
+                  "Hello Morya Luxe Supply, I used your Wholesale Calculator and want to place a recurring supply order."
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-whatsapp"
-                style={{ width: "100%", marginTop: "8px" }}
+                className="btn btn-whatsapp margin-calculator-cta"
               >
-                <span>Lock In Your Wholesale Tier via WhatsApp</span>
+                Lock In Your Wholesale Tier via WhatsApp
               </a>
             </div>
           </div>
