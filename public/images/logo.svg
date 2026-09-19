@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 90" fill="none">
+  <defs>
+    <linearGradient id="moryaGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBE6A2"/>
+      <stop offset="35%" stop-color="#D4AF37"/>
+      <stop offset="70%" stop-color="#AA771C"/>
+      <stop offset="100%" stop-color="#F4D068"/>
+    </linearGradient>
+    <linearGradient id="bladeSilver" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="50%" stop-color="#CBD5E1"/>
+      <stop offset="100%" stop-color="#64748B"/>
+    </linearGradient>
+    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Monogram Crest Shield -->
+  <g transform="translate(10, 5)">
+    <!-- Hexagonal Crest Shield Base -->
+    <polygon points="40,4 74,22 74,60 40,78 6,60 6,22" fill="#12141A" stroke="url(#moryaGold)" stroke-width="2.2" />
+    <polygon points="40,9 69,25 69,57 40,73 11,57 11,25" fill="#090A0E" stroke="rgba(212, 175, 55, 0.3)" stroke-width="1" />
+    
+    <!-- Crown Tri-Peak Accent at Top -->
+    <path d="M30 18 L40 12 L50 18 L45 22 L35 22 Z" fill="url(#moryaGold)" />
+    
+    <!-- Stylized Interwoven 'M' with Barber Shear Blades -->
+    <!-- Left Blade Leg -->
+    <path d="M22 62 L22 28 L32 46 L40 34 L48 46 L58 28 L58 62 L52 62 L52 38 L44 52 L40 45 L36 52 L28 38 L28 62 Z" fill="url(#moryaGold)" />
+    <!-- Center Barber Diamond Pivot -->
+    <polygon points="40,36 44,41 40,46 36,41" fill="#FFFFFF" />
+  </g>
+
+  <!-- Brand Typography -->
+  <g transform="translate(98, 20)">
+    <!-- Main Wordmark -->
+    <text x="0" y="32" font-family="'Plus Jakarta Sans', 'Inter', 'Cinzel', -apple-system, BlinkMacSystemFont, sans-serif" font-size="30" font-weight="900" letter-spacing="4" fill="#FFFFFF">
+      MORYA
+    </text>
+    <text x="145" y="32" font-family="'Plus Jakarta Sans', 'Inter', 'Cinzel', -apple-system, BlinkMacSystemFont, sans-serif" font-size="30" font-weight="900" letter-spacing="4" fill="url(#moryaGold)">
+      LUXE
+    </text>
+    
+    <!-- Subtitle / Tagline -->
+    <text x="2" y="52" font-family="'Inter', -apple-system, BlinkMacSystemFont, sans-serif" font-size="10.5" font-weight="700" letter-spacing="4.5" fill="#94A3B8">
+      WHOLESALE BARBER &amp; SALON SUPPLY
+    </text>
+  </g>
+</svg>
