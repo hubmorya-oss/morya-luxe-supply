@@ -10,13 +10,13 @@ export const MOCK_PRODUCTS: Product[] = [
     categoryName: "Clippers & Trimmers",
     description:
       "Engineered for high-volume barbershops. Features high-torque brushless rotary motor (7,200 RPM), DLC (Diamond-Like Carbon) carbon steel fade blade, digital LED battery display, and ergonomic knurled gold grip.",
-    retailMrp: 7499,
-    wholesalePrice: 3499,
+    retailMrp: 20,
+    wholesalePrice: 10,
     moq: 1,
     tierPricing: [
-      { minQty: 1, unitPrice: 3499, label: "Wholesale Base (1 Unit)", savingsPercent: 53 },
-      { minQty: 5, unitPrice: 3199, label: "Salon Pack (5+ Units)", savingsPercent: 57 },
-      { minQty: 12, unitPrice: 2899, label: "Master Crate (12+ Units)", savingsPercent: 61 },
+      { minQty: 1, unitPrice: 10, label: "Wholesale Base (1 Unit)", savingsPercent: 50 },
+      { minQty: 5, unitPrice: 10, label: "Salon Pack (5+ Units)", savingsPercent: 50 },
+      { minQty: 12, unitPrice: 10, label: "Master Crate (12+ Units)", savingsPercent: 50 },
     ],
     inStock: true,
     stockCount: 84,
