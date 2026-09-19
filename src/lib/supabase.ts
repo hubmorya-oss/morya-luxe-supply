@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Product, Order, BulkInquiryLead } from "@/types";
 import { MOCK_PRODUCTS } from "@/data/mockProducts";
+import { mapRowToProduct } from "@/lib/product-mapper";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -34,28 +35,7 @@ export async function getProducts(): Promise<Product[]> {
       return MOCK_PRODUCTS;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.map((item: any) => ({
-      id: item.id,
-      slug: item.slug,
-      name: item.name,
-      brand: item.brand,
-      category: item.category,
-      categoryName: item.category_name,
-      description: item.description,
-      retailMrp: Number(item.retail_mrp),
-      wholesalePrice: Number(item.wholesale_price),
-      moq: item.moq || 1,
-      tierPricing: item.tier_pricing || [],
-      inStock: item.in_stock ?? true,
-      stockCount: item.stock_count || 0,
-      rating: Number(item.rating) || 5.0,
-      reviewsCount: item.reviews_count || 0,
-      badge: item.badge,
-      imageUrl: item.image_url,
-      features: item.features || [],
-      specs: item.specs || {},
-    }));
+    return data.map((item) => mapRowToProduct(item));
   } catch (err) {
     console.error("Error connecting to Supabase, fallback active:", err);
     return MOCK_PRODUCTS;

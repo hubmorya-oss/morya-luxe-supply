@@ -102,3 +102,105 @@ create policy "Allow public read-only access to products"
 create policy "Allow public insert into bulk_inquiries"
   on public.bulk_inquiries for insert
   with check (true);
+
+-- ==========================================================
+-- PHASE 1: ADMIN PANEL MIGRATION (run after base schema)
+-- ==========================================================
+
+-- 4. CATEGORIES TABLE
+create table if not exists public.categories (
+  id text primary key,
+  slug text unique not null,
+  name text not null,
+  sort_order integer default 0,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+insert into public.categories (id, slug, name, sort_order) values
+  ('clippers-trimmers', 'clippers-trimmers', 'Clippers & Trimmers', 1),
+  ('shears-scissors', 'shears-scissors', 'Shears & Scissors', 2),
+  ('chairs-furniture', 'chairs-furniture', 'Chairs & Furniture', 3),
+  ('haircare-styling', 'haircare-styling', 'Haircare & Styling', 4),
+  ('beard-shaving', 'beard-shaving', 'Beard & Shaving', 5),
+  ('sanitization-hygiene', 'sanitization-hygiene', 'Sanitization & Hygiene', 6)
+on conflict (id) do nothing;
+
+-- 5. ADMIN USERS (RLS allowlist — keep in sync with ADMIN_EMAILS env)
+create table if not exists public.admin_users (
+  email text primary key,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+insert into public.admin_users (email) values ('hubmorya@gmail.com')
+on conflict (email) do nothing;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.admin_users
+    where lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+$$;
+
+alter table public.categories enable row level security;
+
+drop policy if exists "Public read categories" on public.categories;
+drop policy if exists "Admin insert categories" on public.categories;
+drop policy if exists "Admin update categories" on public.categories;
+drop policy if exists "Admin delete categories" on public.categories;
+
+create policy "Public read categories"
+  on public.categories for select
+  using (true);
+
+create policy "Admin insert categories"
+  on public.categories for insert
+  with check (public.is_admin());
+
+create policy "Admin update categories"
+  on public.categories for update
+  using (public.is_admin());
+
+create policy "Admin delete categories"
+  on public.categories for delete
+  using (public.is_admin());
+
+drop policy if exists "Admin insert products" on public.products;
+drop policy if exists "Admin update products" on public.products;
+drop policy if exists "Admin delete products" on public.products;
+
+create policy "Admin insert products"
+  on public.products for insert
+  with check (public.is_admin());
+
+create policy "Admin update products"
+  on public.products for update
+  using (public.is_admin());
+
+create policy "Admin delete products"
+  on public.products for delete
+  using (public.is_admin());
+
+drop policy if exists "Admin read orders" on public.orders;
+
+create policy "Admin read orders"
+  on public.orders for select
+  using (public.is_admin());
+
+drop policy if exists "Admin read bulk_inquiries" on public.bulk_inquiries;
+
+create policy "Admin read bulk_inquiries"
+  on public.bulk_inquiries for select
+  using (public.is_admin());
+
+-- STORAGE: Create bucket "product-images" in Supabase Dashboard > Storage.
+-- Settings: public bucket, allowed MIME types image/jpeg, image/png, image/webp.
+-- Authenticated admins (is_admin) can upload; public read for catalog images.
+-- Example policy (run in Storage > Policies after bucket creation):
+--   SELECT: allow public (true)
+--   INSERT/UPDATE/DELETE: auth.role() = 'authenticated' AND public.is_admin()

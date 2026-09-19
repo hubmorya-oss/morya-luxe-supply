@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrderServer, verifyOrderTotals } from "@/lib/orders";
+import {
+  saveOrderServer,
+  verifyOrderTotals,
+  getOrderByRazorpayOrderId,
+} from "@/lib/orders";
+import { notifyPaidOrder } from "@/lib/order-notifications";
 import { isLiveRazorpayConfigured, isDemoModeEnabled } from "@/lib/config";
 import { validateOrderCustomerDetails } from "@/lib/validation";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
@@ -114,6 +119,9 @@ export async function POST(req: Request) {
       );
     }
 
+    const existingOrder = await getOrderByRazorpayOrderId(razorpay_order_id);
+    const alreadyPaid = existingOrder?.payment_status === "paid";
+
     const isDemoCheckout = isMockOrder && !isLive;
     const completedOrder: Order = {
       ...orderDetails,
@@ -126,12 +134,21 @@ export async function POST(req: Request) {
       razorpayPaymentId: razorpay_payment_id,
     };
 
-    const saved = await saveOrderServer(completedOrder);
+    const saved = await saveOrderServer(completedOrder, { upsert: true });
     if (!saved.success) {
       return NextResponse.json(
         { success: false, error: saved.error || "Failed to persist order" },
         { status: 500 }
       );
+    }
+
+    if (!isDemoCheckout && !alreadyPaid) {
+      await notifyPaidOrder(completedOrder, {
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        amountPaise: Math.round(completedOrder.grandTotal * 100),
+        source: "verify",
+      });
     }
 
     return NextResponse.json({

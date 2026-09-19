@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { saveOrderServer, verifyOrderTotals } from "@/lib/orders";
+import { notifyNewOrder } from "@/lib/order-notifications";
 import { validateOrderCustomerDetails } from "@/lib/validation";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/parse-json";
@@ -61,6 +62,8 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
+    await notifyNewOrder(codOrder, { source: "whatsapp" });
 
     return NextResponse.json({
       success: true,

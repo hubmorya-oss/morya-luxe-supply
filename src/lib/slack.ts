@@ -121,3 +121,121 @@ export async function sendSlackInquiryNotification(lead: {
     return false;
   }
 }
+
+export async function sendSlackOrderNotification(details: {
+  event: "payment.captured" | "payment.failed";
+  orderType?: "razorpay_paid" | "whatsapp_cod";
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  amountPaise?: number;
+  method?: string;
+  customerPhone?: string;
+  customerName?: string;
+  salonName?: string;
+  orderId?: string;
+  failureReason?: string;
+  alreadyPaid?: boolean;
+  source?: "verify" | "webhook" | "whatsapp";
+}) {
+  if (!SLACK_WEBHOOK_URL) {
+    console.warn("SLACK_WEBHOOK_URL is not configured.");
+    return false;
+  }
+
+  const amountInr =
+    details.amountPaise != null
+      ? `₹${(details.amountPaise / 100).toLocaleString("en-IN")}`
+      : "N/A";
+
+  const isSuccess = details.event === "payment.captured";
+  const isWhatsappCod = details.orderType === "whatsapp_cod";
+  const title = isSuccess
+    ? isWhatsappCod
+      ? "📱 New WhatsApp / COD Order | Morya Luxe Supply"
+      : "💰 New Paid Order | Morya Luxe Supply"
+    : "⚠️ Payment Failed | Morya Luxe Supply";
+
+  const cleanPhone = (details.customerPhone || "").replace(/\D/g, "");
+  const waReplyUrl =
+    cleanPhone.length >= 10
+      ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(
+          `Hello ${details.customerName || "there"}, this is Morya Luxe Supply regarding order ${details.orderId || ""}.`
+        )}`
+      : null;
+
+  const payload = {
+    text: isSuccess
+      ? `New order: ${details.salonName || details.orderId} — ${amountInr}`
+      : `Payment failed: ${details.razorpayOrderId}`,
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: title, emoji: true },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Order ID:*\n${details.orderId || "Pending sync"}` },
+          { type: "mrkdwn", text: `*Salon:*\n${details.salonName || "—"}` },
+          { type: "mrkdwn", text: `*Customer:*\n${details.customerName || "—"}` },
+          { type: "mrkdwn", text: `*Phone:*\n${details.customerPhone || "—"}` },
+          { type: "mrkdwn", text: `*Amount:*\n${amountInr}` },
+          { type: "mrkdwn", text: `*Type:*\n${isWhatsappCod ? "WhatsApp / COD" : "Razorpay Paid"}` },
+          ...(details.razorpayOrderId !== "—"
+            ? [{ type: "mrkdwn", text: `*Razorpay Order:*\n${details.razorpayOrderId}` }]
+            : []),
+          ...(details.razorpayPaymentId !== "—"
+            ? [{ type: "mrkdwn", text: `*Payment ID:*\n${details.razorpayPaymentId}` }]
+            : []),
+        ],
+      },
+      ...(waReplyUrl
+        ? [
+            {
+              type: "actions",
+              elements: [
+                {
+                  type: "button",
+                  text: { type: "plain_text", text: "💬 Reply on WhatsApp", emoji: true },
+                  url: waReplyUrl,
+                  style: "primary",
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(details.failureReason
+        ? [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `*Failure reason:*\n>${details.failureReason}`,
+              },
+            },
+          ]
+        : []),
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `${details.alreadyPaid ? "Already marked paid · " : ""}${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST | Razorpay ${details.source ?? "webhook"}`,
+          },
+        ],
+      },
+    ],
+  };
+
+  try {
+    const res = await fetch(SLACK_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch (error) {
+    console.error("Slack order notification error:", error);
+    return false;
+  }
+}

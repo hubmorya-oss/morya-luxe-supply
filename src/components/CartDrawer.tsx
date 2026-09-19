@@ -256,6 +256,16 @@ Please confirm my order dispatch timeline and payment details.`;
           throw new Error("Payment gateway is still loading. Please wait a moment and try again.");
         }
 
+        const pendingRes = await fetch("/api/razorpay/pending", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pendingOrder),
+        });
+        if (!pendingRes.ok) {
+          const pendingErr = await pendingRes.json();
+          throw new Error(pendingErr.error || "Could not save order before payment");
+        }
+
         const options = {
           key: razorpayKeyId,
           amount: orderData.amount,
@@ -288,7 +298,7 @@ Please confirm my order dispatch timeline and payment details.`;
           prefill: {
             name: validatedDetails.fullName,
             contact: validatedDetails.phone,
-            email: validatedDetails.email || "barber@moryaluxesupply.com",
+            ...(validatedDetails.email ? { email: validatedDetails.email } : {}),
           },
           theme: { color: "#D4AF37" },
         };

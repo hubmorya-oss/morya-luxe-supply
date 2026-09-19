@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { CartProvider, useCart } from "@/context/CartContext";
 import { ProductCategory, Product } from "@/types";
 import { getProducts } from "@/lib/supabase";
+import { getCategories } from "@/lib/categories";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import TrustFeatures from "@/components/TrustFeatures";
@@ -25,6 +26,9 @@ import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
 
 function MainAppContent() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<
+    { id: ProductCategory; label: string }[]
+  >([{ id: "all", label: "All Wholesale Gear" }]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>("all");
@@ -36,8 +40,12 @@ function MainAppContent() {
   // Load products on mount
   useEffect(() => {
     async function loadData() {
-      const data = await getProducts();
+      const [data, cats] = await Promise.all([getProducts(), getCategories()]);
       setProducts(data);
+      setCatalogCategories([
+        { id: "all", label: "All Wholesale Gear" },
+        ...cats.map((c) => ({ id: c.id as ProductCategory, label: c.name })),
+      ]);
       setLoading(false);
     }
     loadData();
@@ -58,16 +66,6 @@ function MainAppContent() {
       }
     }
   }, [searchTerm]);
-
-  const categories: { id: ProductCategory; label: string }[] = [
-    { id: "all", label: "All Wholesale Gear" },
-    { id: "clippers-trimmers", label: "Clippers & Trimmers" },
-    { id: "shears-scissors", label: "Shears & Scissors" },
-    { id: "chairs-furniture", label: "Chairs & Furniture" },
-    { id: "haircare-styling", label: "Haircare & Styling" },
-    { id: "beard-shaving", label: "Beard & Shaving" },
-    { id: "sanitization-hygiene", label: "Sanitization & Hygiene" },
-  ];
 
   // Filter & sort logic
   const filteredProducts = useMemo(() => {
@@ -195,7 +193,7 @@ function MainAppContent() {
               scrollbarWidth: "none",
             }}
           >
-            {categories.map((cat) => {
+            {catalogCategories.map((cat) => {
               const isActive = selectedCategory === cat.id;
               return (
                 <button
