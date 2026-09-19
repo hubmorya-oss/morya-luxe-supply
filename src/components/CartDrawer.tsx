@@ -15,7 +15,12 @@ import {
 import { Order } from "@/types";
 import { saveOrderToLocalStorage } from "@/lib/supabase";
 import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
-import { formatItemCount, isValidIndianPhone, isValidPincode } from "@/lib/validation";
+import {
+  formatItemCount,
+  INDIAN_PHONE_ERROR,
+  isValidPincode,
+  normalizeIndianPhone,
+} from "@/lib/validation";
 
 export default function CartDrawer() {
   const {
@@ -53,26 +58,33 @@ export default function CartDrawer() {
       subtotal: c.subtotal,
     }));
 
-  const validateForm = () => {
-    if (!customerDetails.fullName.trim()) return "Please enter your owner/barber name";
-    if (!customerDetails.salonName.trim()) return "Please enter your salon / barbershop name";
-    if (!isValidIndianPhone(customerDetails.phone.trim())) {
-      return "Please enter a valid 10-digit Indian mobile number";
+  const getValidatedCustomerDetails = () => {
+    if (!customerDetails.fullName.trim()) return { error: "Please enter your owner/barber name" };
+    if (!customerDetails.salonName.trim()) {
+      return { error: "Please enter your salon / barbershop name" };
     }
-    if (!customerDetails.address.trim()) return "Please enter delivery address";
-    if (!customerDetails.city.trim()) return "Please enter your city";
+    const normalizedPhone = normalizeIndianPhone(customerDetails.phone);
+    if (!normalizedPhone) return { error: INDIAN_PHONE_ERROR };
+    if (!customerDetails.address.trim()) return { error: "Please enter delivery address" };
+    if (!customerDetails.city.trim()) return { error: "Please enter your city" };
     if (!isValidPincode(customerDetails.pincode.trim())) {
-      return "Please enter a valid 6-digit Indian pincode";
+      return { error: "Please enter a valid 6-digit Indian pincode" };
     }
-    return null;
+    return {
+      details: {
+        ...customerDetails,
+        phone: normalizedPhone,
+      },
+    };
   };
 
   const handleWhatsAppCheckout = async () => {
-    const error = validateForm();
-    if (error) {
-      setErrorMessage(error);
+    const validation = getValidatedCustomerDetails();
+    if ("error" in validation) {
+      setErrorMessage(validation.error);
       return;
     }
+    const validatedDetails = validation.details;
     setErrorMessage("");
     setIsProcessing(true);
 
@@ -80,7 +92,7 @@ export default function CartDrawer() {
       const orderId = `MLS-WA-${Date.now().toString().slice(-6)}`;
       const newOrder: Order = {
         id: orderId,
-        customerDetails,
+        customerDetails: validatedDetails,
         items: buildOrderItems(),
         subtotal,
         wholesaleSavings,
@@ -115,9 +127,9 @@ export default function CartDrawer() {
 Order ID: #${orderId}
 ----------------------------------------
 *Salon Details:*
-Salon: *${customerDetails.salonName}*
-Owner: *${customerDetails.fullName}*
-Phone: *${customerDetails.phone}*
+Salon: *${validatedDetails.salonName}*
+Owner: *${validatedDetails.fullName}*
+Phone: *${validatedDetails.phone}*
 Address: ${customerDetails.address}, ${customerDetails.city} - ${customerDetails.pincode}
 ${customerDetails.gstin ? `GSTIN: ${customerDetails.gstin}\n` : ""}
 ----------------------------------------
@@ -171,11 +183,12 @@ Please confirm my order dispatch timeline and payment details.`;
   };
 
   const handleRazorpayCheckout = async () => {
-    const error = validateForm();
-    if (error) {
-      setErrorMessage(error);
+    const validation = getValidatedCustomerDetails();
+    if ("error" in validation) {
+      setErrorMessage(validation.error);
       return;
     }
+    const validatedDetails = validation.details;
     setErrorMessage("");
     setIsProcessing(true);
 
@@ -196,7 +209,7 @@ Please confirm my order dispatch timeline and payment details.`;
       const tempOrderId = `MLS-RZP-${Date.now().toString().slice(-6)}`;
       const pendingOrder: Order = {
         id: tempOrderId,
-        customerDetails,
+        customerDetails: validatedDetails,
         items: buildOrderItems(),
         subtotal,
         wholesaleSavings,
@@ -219,7 +232,7 @@ Please confirm my order dispatch timeline and payment details.`;
           amount: orderData.amount,
           currency: orderData.currency,
           name: "Morya Luxe Supply",
-          description: `Wholesale Supply - ${customerDetails.salonName}`,
+          description: `Wholesale Supply - ${validatedDetails.salonName}`,
           image: "/images/icon.svg",
           order_id: orderData.id,
           handler: async function (response: Record<string, string>) {
@@ -241,9 +254,9 @@ Please confirm my order dispatch timeline and payment details.`;
             ondismiss: () => setIsProcessing(false),
           },
           prefill: {
-            name: customerDetails.fullName,
-            contact: customerDetails.phone,
-            email: customerDetails.email || "barber@moryaluxesupply.com",
+            name: validatedDetails.fullName,
+            contact: validatedDetails.phone,
+            email: validatedDetails.email || "barber@moryaluxesupply.com",
           },
           theme: { color: "#D4AF37" },
         };

@@ -5,6 +5,7 @@ import { useCart } from "@/context/CartContext";
 import { X, Building2, MessageCircle, CheckCircle, Sparkles } from "lucide-react";
 import { BulkInquiryLead } from "@/types";
 import { whatsappUrl, WHATSAPP_DISPLAY } from "@/lib/config";
+import { INDIAN_PHONE_ERROR, normalizeIndianPhone } from "@/lib/validation";
 
 export default function BulkInquiryModal() {
   const { isBulkInquiryOpen, setIsBulkInquiryOpen } = useCart();
@@ -26,8 +27,23 @@ export default function BulkInquiryModal() {
 
   if (!isBulkInquiryOpen) return null;
 
+  const validateForm = () => {
+    if (!formData.salonName.trim()) return "Please enter your salon / academy name";
+    if (!formData.contactPerson.trim()) return "Please enter contact person name";
+    if (!normalizeIndianPhone(formData.phone)) return INDIAN_PHONE_ERROR;
+    if (!formData.city.trim()) return "Please enter your city";
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validationError = validateForm();
+    if (validationError) {
+      setErrorMessage(validationError);
+      return;
+    }
+
+    const normalizedPhone = normalizeIndianPhone(formData.phone)!;
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -35,7 +51,7 @@ export default function BulkInquiryModal() {
       const res = await fetch("/api/inquiry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, phone: normalizedPhone }),
       });
       const data = await res.json();
 
@@ -196,9 +212,8 @@ Details: ${formData.message || "Requesting custom quotation catalogue."}`;
                   id="inquiry-phone"
                   type="tel"
                   required
-                  inputMode="numeric"
-                  pattern="[6-9][0-9]{9}"
-                  title="Please enter a valid 10-digit Indian mobile number starting with 6-9"
+                  inputMode="tel"
+                  title={INDIAN_PHONE_ERROR}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="10-digit number"

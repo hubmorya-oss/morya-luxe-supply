@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { submitBulkInquiry } from "@/lib/supabase";
 import { sendSlackInquiryNotification } from "@/lib/slack";
-import { isValidIndianPhone } from "@/lib/validation";
+import { INDIAN_PHONE_ERROR, normalizeIndianPhone } from "@/lib/validation";
 import { BulkInquiryLead } from "@/types";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/parse-json";
@@ -46,11 +46,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!isValidIndianPhone(phone.trim())) {
-      return NextResponse.json(
-        { error: "Please enter a valid 10-digit Indian mobile number" },
-        { status: 400 }
-      );
+    const normalizedPhone = normalizeIndianPhone(phone);
+    if (!normalizedPhone) {
+      return NextResponse.json({ error: INDIAN_PHONE_ERROR }, { status: 400 });
     }
 
     const validRequirementTypes = [
@@ -67,7 +65,7 @@ export async function POST(req: Request) {
     const lead: BulkInquiryLead = {
       salonName: salonName.trim(),
       contactPerson: contactPerson.trim(),
-      phone: phone.trim(),
+      phone: normalizedPhone,
       email: email.trim(),
       city: city.trim(),
       state: state.trim(),

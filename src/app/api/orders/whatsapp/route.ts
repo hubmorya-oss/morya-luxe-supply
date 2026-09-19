@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { saveOrderServer, verifyOrderTotals } from "@/lib/orders";
-import { isValidIndianPhone, isValidPincode } from "@/lib/validation";
+import { isValidPincode, validateOrderCustomerPhone } from "@/lib/validation";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/parse-json";
 import { Order } from "@/types";
@@ -40,11 +40,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!isValidIndianPhone(customerDetails.phone)) {
-      return NextResponse.json(
-        { error: "Please enter a valid 10-digit Indian mobile number" },
-        { status: 400 }
-      );
+    const phoneCheck = validateOrderCustomerPhone(customerDetails.phone);
+    if (!phoneCheck.valid) {
+      return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
     }
 
     if (!isValidPincode(customerDetails.pincode)) {
@@ -64,6 +62,10 @@ export async function POST(req: Request) {
 
     const codOrder: Order = {
       ...order,
+      customerDetails: {
+        ...customerDetails,
+        phone: phoneCheck.phone,
+      },
       subtotal: verification.verifiedSubtotal!,
       shipping: verification.verifiedShipping!,
       grandTotal: verification.verifiedGrandTotal!,

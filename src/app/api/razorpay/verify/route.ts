@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { saveOrderServer, verifyOrderTotals } from "@/lib/orders";
 import { isLiveRazorpayConfigured, isDemoModeEnabled } from "@/lib/config";
+import { isValidPincode, validateOrderCustomerPhone } from "@/lib/validation";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { parseJsonBody } from "@/lib/parse-json";
 import { Order } from "@/types";
@@ -44,6 +45,36 @@ export async function POST(req: Request) {
     if (!orderDetails.items?.length || !orderDetails.customerDetails) {
       return NextResponse.json(
         { success: false, error: "Invalid order details payload" },
+        { status: 400 }
+      );
+    }
+
+    const { customerDetails } = orderDetails;
+
+    if (
+      !customerDetails.fullName?.trim() ||
+      !customerDetails.salonName?.trim() ||
+      !customerDetails.address?.trim() ||
+      !customerDetails.city?.trim() ||
+      !customerDetails.pincode?.trim()
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Missing required delivery details" },
+        { status: 400 }
+      );
+    }
+
+    const phoneCheck = validateOrderCustomerPhone(customerDetails.phone);
+    if (!phoneCheck.valid) {
+      return NextResponse.json(
+        { success: false, error: phoneCheck.error },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidPincode(customerDetails.pincode)) {
+      return NextResponse.json(
+        { success: false, error: "Please enter a valid 6-digit Indian pincode" },
         { status: 400 }
       );
     }
@@ -102,6 +133,10 @@ export async function POST(req: Request) {
     const isDemoCheckout = isMockOrder && !isLive;
     const completedOrder: Order = {
       ...orderDetails,
+      customerDetails: {
+        ...customerDetails,
+        phone: phoneCheck.phone,
+      },
       subtotal: verification.verifiedSubtotal!,
       shipping: verification.verifiedShipping!,
       grandTotal: verification.verifiedGrandTotal!,
